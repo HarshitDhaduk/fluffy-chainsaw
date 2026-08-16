@@ -1,7 +1,21 @@
 """Runtime configuration, all environment-driven so the same image serves every service."""
 
+import contextlib
 import os
 from datetime import timedelta
+from pathlib import Path
+
+# Load backend/.env (gitignored) so a locally stored API key just works.
+with contextlib.suppress(ImportError):
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+    load_dotenv()  # also honor a .env in the current working directory
+
+# Google AI Studio issues keys as GEMINI_API_KEY; ADK/google-genai read
+# GOOGLE_API_KEY. Accept either.
+if os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
+    os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
 
 
 def _bool(name: str, default: bool = False) -> bool:

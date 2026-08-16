@@ -30,8 +30,15 @@ JSON shapes as the live prompts — the choreography is identical.
 
 ```bash
 pip install -e ".[cloud]"
-export GOOGLE_API_KEY=...            # or GOOGLE_GENAI_USE_VERTEXAI=true
+cp .env.example .env   # then paste your key into backend/.env (gitignored)
+python scripts/smoke_live.py   # verifies all three LLM agents answer live
 ```
+
+Either `GOOGLE_API_KEY` or `GEMINI_API_KEY` works (AI Studio issues the
+latter; we alias it). Vertex AI works too: set `GOOGLE_GENAI_USE_VERTEXAI=true`
+plus `GOOGLE_CLOUD_PROJECT`/`GOOGLE_CLOUD_LOCATION`. With credentials present
+every run (demo, tests, server) automatically switches from fixtures to real
+Gemini; force fixtures back with `LALFITA_OFFLINE=1`.
 
 ## Tests & lint
 
