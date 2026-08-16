@@ -1,0 +1,44 @@
+[project]
+name = "lalfita"
+version = "0.1.0"
+description = "LalFita — autonomous bureaucracy navigator (All Things Agentic Hackathon)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+# Cloud deps are optional so the offline walking skeleton (and CI) stay light.
+cloud = [
+    "google-adk>=1.0",
+    "google-genai>=1.0",
+    "google-cloud-firestore>=2.16",
+    "google-cloud-pubsub>=2.21",
+    "google-cloud-storage>=2.16",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["lalfita*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
