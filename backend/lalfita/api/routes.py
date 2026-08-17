@@ -45,10 +45,14 @@ def build_router(ctx: Context) -> APIRouter:
             raise HTTPException(404, "journey not found")
         timeline = await ctx.store.get_timeline(journey_id)
         approvals = await ctx.store.list_approvals(journey_id)
+        deadlines = await ctx.store.list_deadlines(journey_id)
         return {
             **journey.model_dump(mode="json"),
             "timeline": [t.model_dump(mode="json") for t in sorted(timeline, key=lambda t: t.ts)],
             "approvals": [a.model_dump(mode="json") for a in approvals],
+            "deadlines": [
+                d.model_dump(mode="json") for d in sorted(deadlines, key=lambda d: d.due_at)
+            ],
         }
 
     @router.post("/journeys/{journey_id}/documents")

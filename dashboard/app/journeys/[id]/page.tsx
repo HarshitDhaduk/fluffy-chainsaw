@@ -1,7 +1,13 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { decideApproval, getJourney, uploadDocument, type Journey } from "@/lib/api";
+import {
+  decideApproval,
+  getJourney,
+  uploadDocument,
+  type Deadline,
+  type Journey,
+} from "@/lib/api";
 
 const DOC_LABELS: Record<string, string> = {
   pan: "PAN card",
@@ -56,9 +62,38 @@ function DocumentSlot({
   );
 }
 
+function CountdownCard({ deadline, now }: { deadline: Deadline; now: number }) {
+  const due = new Date(deadline.due_at).getTime();
+  const created = new Date(deadline.created_at).getTime();
+  const total = Math.max(due - created, 1);
+  const remaining = due - now;
+  const fraction = Math.max(remaining / total, 0);
+  const urgency = remaining <= 0 ? "overdue" : fraction < 0.25 ? "critical" : fraction < 0.5 ? "warning" : "ok";
+
+  const abs = Math.abs(remaining);
+  const d = Math.floor(abs / 86400000);
+  const h = Math.floor((abs % 86400000) / 3600000);
+  const m = Math.floor((abs % 3600000) / 60000);
+  const s = Math.floor((abs % 60000) / 1000);
+  const clock = d > 0 ? `${d}d ${h}h ${m}m` : `${h}h ${m}m ${s}s`;
+
+  return (
+    <div className={`countdown ${urgency}`}>
+      <div className="countdown-clock">
+        {remaining <= 0 ? `⛔ overdue by ${clock}` : `⏳ ${clock} left`}
+      </div>
+      <div style={{ fontSize: "0.85rem" }}>{deadline.label}</div>
+      <div className="countdown-track">
+        <div className="countdown-fill" style={{ width: `${Math.min(fraction, 1) * 100}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export default function JourneyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [journey, setJourney] = useState<Journey | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   async function refresh() {
     try {
@@ -70,29 +105,53 @@ export default function JourneyPage({ params }: { params: Promise<{ id: string }
 
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 2000);
-    return () => clearInterval(t);
+    const poll = setInterval(refresh, 2000);
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      clearInterval(poll);
+      clearInterval(tick);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   if (!journey) return <p>Loading…</p>;
 
   const pending = (journey.approvals ?? []).filter((a) => a.status === "pending");
+  const activeDeadlines = (journey.deadlines ?? []).filter((d) => !d.resolved);
+  const done = journey.requirements.filter((r) => r.status === "done").length;
+  const total = journey.requirements.length;
 
   return (
     <>
       <div className="card">
-        <span className={`status-pill ${journey.status}`}>{journey.status.replace("_", " ")}</span>
+        <span className={`status-pill ${journey.status}`}>{journey.status.replace(/_/g, " ")}</span>
         <h2 style={{ margin: "0.5rem 0" }}>{journey.goal}</h2>
-        <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
-          {journey.requirements.map((r) => (
-            <li key={r.id} style={{ fontSize: "0.9rem", marginBottom: "0.25rem" }}>
-              <strong>{r.title}</strong> — {r.form} via {r.authority}{" "}
-              {r.registration_number ? `✅ ${r.registration_number}` : `(${r.status})`}
-            </li>
-          ))}
-        </ul>
+        {total > 0 && (
+          <>
+            <div className="progress-track" title={`${done}/${total} registrations granted`}>
+              <div className="progress-fill" style={{ width: `${(done / total) * 100}%` }} />
+            </div>
+            <ul style={{ margin: "0.75rem 0 0", paddingLeft: "1.2rem" }}>
+              {journey.requirements.map((r) => (
+                <li key={r.id} style={{ fontSize: "0.9rem", marginBottom: "0.25rem" }}>
+                  <strong>{r.title}</strong> — {r.form} via {r.authority}{" "}
+                  {r.registration_number ? `✅ ${r.registration_number}` : `(${r.status.replace(/_/g, " ")})`}
+                  <div style={{ color: "var(--muted)", fontSize: "0.8rem" }}>{r.why}</div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </div>
+
+      {activeDeadlines.length > 0 && (
+        <div className="card" style={{ borderColor: "#f59e0b" }}>
+          <h3 style={{ marginTop: 0 }}>Ticking clocks the Sentinel is watching</h3>
+          {activeDeadlines.map((d) => (
+            <CountdownCard key={d.id} deadline={d} now={now} />
+          ))}
+        </div>
+      )}
 
       {journey.required_documents.length > 0 && journey.status !== "completed" && (
         <div className="card">
@@ -128,7 +187,7 @@ export default function JourneyPage({ params }: { params: Promise<{ id: string }
         <h3 style={{ marginTop: 0 }}>What your agents have been doing</h3>
         <ul className="timeline">
           {(journey.timeline ?? []).map((t, i) => (
-            <li key={i}>
+            <li key={i} className={`actor-${t.actor}`}>
               <span className="actor">{t.actor}</span>
               {t.detail}
               <span className="ts">{new Date(t.ts).toLocaleTimeString()}</span>

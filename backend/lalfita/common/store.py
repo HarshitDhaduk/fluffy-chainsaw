@@ -44,6 +44,7 @@ class Store:
     async def create_deadline(self, deadline: Deadline) -> None: ...
     async def save_deadline(self, deadline: Deadline) -> None: ...
     async def list_active_deadlines(self) -> list[Deadline]: ...
+    async def list_deadlines(self, journey_id: str) -> list[Deadline]: ...
 
 
 class InMemoryStore(Store):
@@ -114,6 +115,13 @@ class InMemoryStore(Store):
 
     async def list_active_deadlines(self) -> list[Deadline]:
         return [d.model_copy(deep=True) for d in self._deadlines.values() if not d.resolved]
+
+    async def list_deadlines(self, journey_id: str) -> list[Deadline]:
+        return [
+            d.model_copy(deep=True)
+            for d in self._deadlines.values()
+            if d.journey_id == journey_id
+        ]
 
 
 class FirestoreStore(Store):
@@ -215,4 +223,8 @@ class FirestoreStore(Store):
 
     async def list_active_deadlines(self) -> list[Deadline]:
         query = self._db.collection("deadlines").where("resolved", "==", False)
+        return [Deadline.model_validate(s.to_dict()) async for s in query.stream()]
+
+    async def list_deadlines(self, journey_id: str) -> list[Deadline]:
+        query = self._db.collection("deadlines").where("journey_id", "==", journey_id)
         return [Deadline.model_validate(s.to_dict()) async for s in query.stream()]

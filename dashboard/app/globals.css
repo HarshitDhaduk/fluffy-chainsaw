@@ -87,3 +87,84 @@ input, textarea {
   font: inherit;
   margin-bottom: 0.75rem;
 }
+input[type="checkbox"] { width: auto; margin: 0; }
+input[type="file"] { border: none; padding: 0.25rem 0; }
+
+label { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+
+/* Intake wizard */
+.wizard-steps { margin-bottom: 1rem; }
+.wizard-step {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-right: 1rem;
+}
+.wizard-step.active { color: var(--accent); font-weight: 700; }
+.wizard-step.done { color: #166534; }
+
+.chip {
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin: 0 0.4rem 0.4rem 0;
+}
+.chip-active { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+
+/* Requirements progress */
+.progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+.progress-fill {
+  height: 100%;
+  background: #16a34a;
+  border-radius: 999px;
+  transition: width 0.6s ease;
+}
+
+/* Deadline countdowns */
+.countdown {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.6rem;
+}
+.countdown-clock { font-weight: 700; font-variant-numeric: tabular-nums; }
+.countdown-track {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+  margin-top: 0.4rem;
+}
+.countdown-fill { height: 100%; background: #16a34a; transition: width 1s linear; }
+.countdown.warning .countdown-fill { background: #f59e0b; }
+.countdown.warning .countdown-clock { color: #92400e; }
+.countdown.critical .countdown-fill { background: #dc2626; }
+.countdown.critical .countdown-clock { color: #b91c1c; animation: pulse 1s infinite; }
+.countdown.overdue { border-color: #dc2626; background: #fef2f2; }
+.countdown.overdue .countdown-clock { color: #b91c1c; }
+@keyframes pulse { 50% { opacity: 0.55; } }
+
+/* Timeline actor colors */
+.timeline .actor-pathfinder .actor { color: #7c3aed; }
+.timeline .actor-planner .actor { color: #0891b2; }
+.timeline .actor-clerk .actor { color: #b45309; }
+.timeline .actor-liaison .actor { color: #1d4ed8; }
+.timeline .actor-sentinel .actor { color: #dc2626; }
+.timeline .actor-portal .actor { color: #374151; }
+.timeline .actor-user .actor { color: #16a34a; }
+.timeline li.actor-pathfinder::before { background: #7c3aed; }
+.timeline li.actor-planner::before { background: #0891b2; }
+.timeline li.actor-clerk::before { background: #b45309; }
+.timeline li.actor-liaison::before { background: #1d4ed8; }
+.timeline li.actor-sentinel::before { background: #dc2626; }
+.timeline li.actor-portal::before { background: #374151; }
+.timeline li.actor-user::before { background: #16a34a; }

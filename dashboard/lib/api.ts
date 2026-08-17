@@ -39,6 +39,15 @@ export type DocumentRecord = {
   issues: DocumentIssue[];
 };
 
+export type Deadline = {
+  id: string;
+  label: string;
+  due_at: string;
+  created_at: string;
+  resolved: boolean;
+  escalations_sent: number;
+};
+
 export type Journey = {
   id: string;
   goal: string;
@@ -48,6 +57,7 @@ export type Journey = {
   documents: DocumentRecord[];
   timeline?: TimelineEntry[];
   approvals?: Approval[];
+  deadlines?: Deadline[];
 };
 
 export async function listJourneys(): Promise<Journey[]> {
