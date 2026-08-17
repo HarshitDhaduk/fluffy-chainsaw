@@ -66,6 +66,9 @@ docs/CONCEPT.md   concept, architecture, judging map, video script, build plan
 
 ## Documents
 
+- **[docs/PRD.md](docs/PRD.md)** — product requirements: features (F1–F11
+  with priorities), ADK 2 orchestration patterns as applied here,
+  long-running/idempotency discipline, build plan to Aug 31.
 - **[docs/CONCEPT.md](docs/CONCEPT.md)** — full concept: flagship demo
   journey, agent fleet design, architecture, judging-criteria mapping,
   demo video script, and the two-week build plan.
