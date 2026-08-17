@@ -2,11 +2,21 @@
 
 Two scripts, run from the repo root on any machine with the
 [gcloud CLI](https://cloud.google.com/sdk/docs/install) authenticated
-(`gcloud auth login`):
+(`gcloud auth login`).
+
+**Windows (PowerShell)** — `.sh` files don't run in PowerShell; use the
+native ports:
+
+```powershell
+./infra/setup.ps1 -ProjectId <your-project>    # one-time: APIs, Firestore, Pub/Sub, bucket, IAM
+./infra/deploy.ps1 -ProjectId <your-project>   # every deploy: 4 Cloud Run services + wiring
+```
+
+**macOS / Linux / WSL / Git Bash / Cloud Shell:**
 
 ```bash
-PROJECT_ID=<your-project> ./infra/setup.sh    # one-time: APIs, Firestore, Pub/Sub, bucket, IAM
-PROJECT_ID=<your-project> ./infra/deploy.sh   # every deploy: 4 Cloud Run services + wiring
+PROJECT_ID=<your-project> ./infra/setup.sh
+PROJECT_ID=<your-project> ./infra/deploy.sh
 ```
 
 `REGION` defaults to `us-central1` (newest Gemini models arrive there first).
