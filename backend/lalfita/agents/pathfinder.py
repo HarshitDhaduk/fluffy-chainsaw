@@ -21,16 +21,21 @@ Keys must be stable slugs (e.g. "gst", "fssai_basic", "udyam")."""
 
 def build_agent():
     from google.adk.agents import LlmAgent
-    from google.adk.tools import google_search
 
     from ..common import config
+
+    tools = []
+    if config.SEARCH_GROUNDING:
+        from google.adk.tools import google_search
+
+        tools.append(google_search)
 
     return LlmAgent(
         name="pathfinder",
         model=config.GEMINI_PRO,
         description="Researches which government registrations apply to a business.",
         instruction=INSTRUCTION,
-        tools=[google_search],
+        tools=tools,
     )
 
 

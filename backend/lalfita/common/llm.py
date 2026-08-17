@@ -23,22 +23,30 @@ async def run_agent(build_agent: Callable[[], Any], prompt: str, *, offline_fixt
         log.info("LLM offline mode: returning fixture for %s", build_agent.__module__)
         return offline_fixture
 
-    from google.adk.runners import InMemoryRunner
-    from google.genai import types
+    try:
+        from google.adk.runners import InMemoryRunner
+        from google.genai import types
 
-    agent = build_agent()
-    runner = InMemoryRunner(agent=agent, app_name="lalfita")
-    session = await runner.session_service.create_session(app_name="lalfita", user_id="lalfita")
-    message = types.Content(role="user", parts=[types.Part(text=prompt)])
+        agent = build_agent()
+        runner = InMemoryRunner(agent=agent, app_name="lalfita")
+        session = await runner.session_service.create_session(
+            app_name="lalfita", user_id="lalfita"
+        )
+        message = types.Content(role="user", parts=[types.Part(text=prompt)])
 
-    final_text = ""
-    async for event in runner.run_async(
-        user_id="lalfita", session_id=session.id, new_message=message
-    ):
-        if event.is_final_response() and event.content and event.content.parts:
-            final_text = "".join(p.text or "" for p in event.content.parts)
+        final_text = ""
+        async for event in runner.run_async(
+            user_id="lalfita", session_id=session.id, new_message=message
+        ):
+            if event.is_final_response() and event.content and event.content.parts:
+                final_text = "".join(p.text or "" for p in event.content.parts)
 
-    return _parse_json(final_text, fallback=offline_fixture)
+        return _parse_json(final_text, fallback=offline_fixture)
+    except Exception:
+        # A quota blip or transient API error must degrade a journey, never
+        # stall it: fall back to the fixture and keep the choreography moving.
+        log.exception("live LLM call failed; degrading to fixture")
+        return offline_fixture
 
 
 def _parse_json(text: str, *, fallback: dict) -> dict:

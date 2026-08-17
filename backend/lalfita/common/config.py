@@ -44,8 +44,18 @@ def offline() -> bool:
     return not has_creds
 
 
-GEMINI_FLASH: str = os.environ.get("GEMINI_FLASH_MODEL", "gemini-2.5-flash")
-GEMINI_PRO: str = os.environ.get("GEMINI_PRO_MODEL", "gemini-2.5-pro")
+# Free-tier AI Studio keys have zero quota on Pro models, so both tiers
+# default to Flash; point GEMINI_PRO_MODEL at a Pro model (e.g.
+# gemini-3.1-pro-preview) once running on Vertex/billing.
+GEMINI_FLASH: str = os.environ.get("GEMINI_FLASH_MODEL", "gemini-3.5-flash")
+GEMINI_PRO: str = os.environ.get("GEMINI_PRO_MODEL", "gemini-3.5-flash")
+
+# Google Search grounding for Pathfinder is a paid-tier/Vertex feature; on a
+# free-tier API key it 429s the whole call. Defaults on under Vertex, off
+# otherwise; force with GEMINI_SEARCH_GROUNDING=1/0.
+SEARCH_GROUNDING: bool = _bool(
+    "GEMINI_SEARCH_GROUNDING", default=_bool("GOOGLE_GENAI_USE_VERTEXAI")
+)
 
 # --- Wiring -----------------------------------------------------------------
 # "local"  -> in-process event bus + in-memory store + direct sandbox calls
