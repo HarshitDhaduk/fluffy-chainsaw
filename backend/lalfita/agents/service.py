@@ -10,6 +10,7 @@ import json
 from fastapi import FastAPI, Request
 
 from ..common import config, events
+from ..common.blobs import GcsBlobStore
 from ..common.bus import PubSubBus
 from ..common.gateway import HttpGateway
 from ..common.store import FirestoreStore
@@ -28,6 +29,7 @@ def get_ctx() -> Context:
             store=FirestoreStore(config.GCP_PROJECT or None),
             bus=PubSubBus(config.GCP_PROJECT, config.PUBSUB_TOPIC),
             gateway=HttpGateway(),
+            blobs=GcsBlobStore(config.GCS_BUCKET) if config.GCS_BUCKET else None,
         )
     return _ctx
 

@@ -17,8 +17,15 @@ from . import config
 log = logging.getLogger(__name__)
 
 
-async def run_agent(build_agent: Callable[[], Any], prompt: str, *, offline_fixture: dict) -> dict:
-    """Run one prompt through an ADK agent and parse its JSON reply."""
+async def run_agent(
+    build_agent: Callable[[], Any],
+    prompt: str,
+    *,
+    offline_fixture: dict,
+    images: list[tuple[bytes, str]] | None = None,
+) -> dict:
+    """Run one prompt (optionally with image parts) through an ADK agent and
+    parse its JSON reply. `images` is a list of (bytes, mime_type)."""
     if config.offline():
         log.info("LLM offline mode: returning fixture for %s", build_agent.__module__)
         return offline_fixture
@@ -32,7 +39,10 @@ async def run_agent(build_agent: Callable[[], Any], prompt: str, *, offline_fixt
         session = await runner.session_service.create_session(
             app_name="lalfita", user_id="lalfita"
         )
-        message = types.Content(role="user", parts=[types.Part(text=prompt)])
+        parts = [types.Part(text=prompt)]
+        for data, mime_type in images or []:
+            parts.append(types.Part.from_bytes(data=data, mime_type=mime_type))
+        message = types.Content(role="user", parts=parts)
 
         final_text = ""
         async for event in runner.run_async(

@@ -12,7 +12,7 @@ gcloud config set project "$PROJECT_ID"
 
 deploy() { # name, module, extra env
   local name="$1" module="$2" extra_env="${3:-}"
-  local env_vars="LALFITA_MODE=cloud,GCP_PROJECT=${PROJECT_ID},PUBSUB_TOPIC=${TOPIC},APP_MODULE=${module},GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION}"
+  local env_vars="LALFITA_MODE=cloud,GCP_PROJECT=${PROJECT_ID},PUBSUB_TOPIC=${TOPIC},GCS_BUCKET=${PROJECT_ID}-lalfita-vault,APP_MODULE=${module},GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION}"
   [ -n "$extra_env" ] && env_vars="${env_vars},${extra_env}"
   gcloud run deploy "$name" \
     --source "$ROOT/backend" \

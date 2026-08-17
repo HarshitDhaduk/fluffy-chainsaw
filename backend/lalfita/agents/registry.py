@@ -24,6 +24,7 @@ ROUTES: dict[str, list[Handler]] = {
     events.JOURNEY_CREATED: [pathfinder.on_journey_created],
     events.REQUIREMENTS_DETERMINED: [planner.on_requirements_determined],
     events.PLAN_READY: [clerk.on_plan_ready],
+    events.DOCUMENT_UPLOADED: [clerk.on_document_uploaded],
     events.APPROVAL_GRANTED: [_route_approval],
     events.PORTAL_RESPONSE: [liaison.on_portal_response],
     events.DEADLINE_TICK: [sentinel.on_deadline_tick],

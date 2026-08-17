@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from ..agents.context import Context
 from ..common import config
+from ..common.blobs import GcsBlobStore
 from ..common.bus import PubSubBus
 from ..common.gateway import HttpGateway
 from ..common.store import FirestoreStore
@@ -19,5 +20,6 @@ ctx = Context(
     store=FirestoreStore(config.GCP_PROJECT or None),
     bus=PubSubBus(config.GCP_PROJECT, config.PUBSUB_TOPIC),
     gateway=HttpGateway(),
+    blobs=GcsBlobStore(config.GCS_BUCKET) if config.GCS_BUCKET else None,
 )
 app.include_router(build_router(ctx))

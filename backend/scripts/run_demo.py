@@ -30,6 +30,9 @@ MEERA = {
         "annual_turnover_inr": 800000,
         "premises": "residential",
         "channels": ["delivery platforms", "direct orders"],
+        # Terminal demo runs unattended: load fixture documents instead of
+        # waiting for uploads (the dashboard flow uses real uploads).
+        "demo_documents": True,
     },
 }
 

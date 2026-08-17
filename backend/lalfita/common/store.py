@@ -4,7 +4,18 @@ single source of truth; the dashboard renders straight from here.
 InMemoryStore — local dev/tests.
 FirestoreStore — cloud (collections: journeys, journeys/{id}/timeline,
                  approvals, deadlines).
+
+Concurrent events on one journey (parallel uploads, racing approvals) must
+never lost-update each other, so every concurrent write path goes through
+`mutate_journey`: an atomic read-modify-write (per-journey lock in memory,
+Firestore transaction in cloud). `save_journey` remains for single-writer
+stages only.
 """
+
+import asyncio
+from collections import defaultdict
+from collections.abc import Callable
+from typing import Any
 
 from .schemas import Approval, ApprovalStatus, Deadline, Journey, TimelineEntry, utcnow
 
@@ -13,6 +24,14 @@ class Store:
     async def create_journey(self, journey: Journey) -> None: ...
     async def get_journey(self, journey_id: str) -> Journey | None: ...
     async def save_journey(self, journey: Journey) -> None: ...
+
+    async def mutate_journey(
+        self, journey_id: str, fn: Callable[[Journey], Any]
+    ) -> tuple[Journey | None, Any]:
+        """Atomically apply `fn` (synchronous, no awaits) to the journey.
+        Returns (updated journey, fn's return value), or (None, None) if the
+        journey does not exist."""
+        ...
     async def list_journeys(self) -> list[Journey]: ...
     async def append_timeline(self, journey_id: str, entry: TimelineEntry) -> None: ...
     async def get_timeline(self, journey_id: str) -> list[TimelineEntry]: ...
@@ -33,6 +52,20 @@ class InMemoryStore(Store):
         self._timelines: dict[str, list[TimelineEntry]] = {}
         self._approvals: dict[str, Approval] = {}
         self._deadlines: dict[str, Deadline] = {}
+        self._locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+    async def mutate_journey(
+        self, journey_id: str, fn: Callable[[Journey], Any]
+    ) -> tuple[Journey | None, Any]:
+        async with self._locks[journey_id]:
+            stored = self._journeys.get(journey_id)
+            if stored is None:
+                return None, None
+            journey = stored.model_copy(deep=True)
+            result = fn(journey)
+            journey.updated_at = utcnow()
+            self._journeys[journey_id] = journey.model_copy(deep=True)
+            return journey, result
 
     async def create_journey(self, journey: Journey) -> None:
         self._journeys[journey.id] = journey
@@ -88,6 +121,27 @@ class FirestoreStore(Store):
         from google.cloud import firestore
 
         self._db = firestore.AsyncClient(project=project or None)
+
+    async def mutate_journey(
+        self, journey_id: str, fn: Callable[[Journey], Any]
+    ) -> tuple[Journey | None, Any]:
+        from google.cloud import firestore
+
+        ref = self._db.collection("journeys").document(journey_id)
+        transaction = self._db.transaction()
+
+        @firestore.async_transactional
+        async def run(txn) -> tuple[Journey | None, Any]:
+            snap = await ref.get(transaction=txn)
+            if not snap.exists:
+                return None, None
+            journey = Journey.model_validate(snap.to_dict())
+            result = fn(journey)
+            journey.updated_at = utcnow()
+            txn.set(ref, journey.model_dump(mode="json"))
+            return journey, result
+
+        return await run(transaction)
 
     async def create_journey(self, journey: Journey) -> None:
         await self._db.collection("journeys").document(journey.id).set(

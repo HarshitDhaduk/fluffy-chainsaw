@@ -44,18 +44,24 @@ async def on_journey_created(ctx: Context, payload: dict) -> None:
     if journey is None or journey.requirements:  # idempotency guard
         return
 
-    await ctx.set_status(journey, JourneyStatus.RESEARCHING)
+    await ctx.set_status(journey.id, JourneyStatus.RESEARCHING)
     await ctx.log(journey.id, "pathfinder", "research.started", f"Researching: “{journey.goal}”")
 
     prompt = f"Goal: {journey.goal}\nProfile: {json.dumps(journey.profile)}"
     result = await llm.run_agent(build_agent, prompt, offline_fixture=PATHFINDER_DETERMINATION)
+    requirements = [Requirement.model_validate(r) for r in result["requirements"]]
 
-    journey.requirements = [Requirement.model_validate(r) for r in result["requirements"]]
-    await ctx.store.save_journey(journey)
+    def apply(j):
+        if not j.requirements:  # idempotency under redelivery
+            j.requirements = requirements
+
+    updated, _ = await ctx.store.mutate_journey(journey.id, apply)
+    if updated is None:
+        return
     await ctx.log(
         journey.id,
         "pathfinder",
         "requirements.determined",
-        "Applicable: " + ", ".join(r.title for r in journey.requirements),
+        "Applicable: " + ", ".join(r.title for r in updated.requirements),
     )
     await ctx.bus.publish(events.REQUIREMENTS_DETERMINED, {"journey_id": journey.id})

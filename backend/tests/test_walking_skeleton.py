@@ -29,7 +29,11 @@ async def test_meera_journey_completes():
 
     journey = Journey(
         goal="Make my home food business legal",
-        profile={"applicant_name": "Meera Shah", "annual_turnover_inr": 800000},
+        profile={
+            "applicant_name": "Meera Shah",
+            "annual_turnover_inr": 800000,
+            "demo_documents": True,
+        },
     )
     await ctx.store.create_journey(journey)
     await ctx.bus.publish(events.JOURNEY_CREATED, {"journey_id": journey.id})
@@ -76,7 +80,7 @@ async def test_meera_journey_completes():
 async def test_approval_gate_blocks_until_human_acts():
     _, ctx = build_app()
 
-    journey = Journey(goal="Test gating", profile={})
+    journey = Journey(goal="Test gating", profile={"demo_documents": True})
     await ctx.store.create_journey(journey)
     await ctx.bus.publish(events.JOURNEY_CREATED, {"journey_id": journey.id})
     await asyncio.sleep(0.5)

@@ -35,24 +35,43 @@ def build_agent():
 
 
 async def on_submission_approved(ctx: Context, payload: dict) -> None:
-    journey = await ctx.store.get_journey(payload["journey_id"])
-    req = journey.requirement(payload["requirement_id"]) if journey else None
-    if journey is None or req is None or req.reference:  # idempotency guard
+    journey_id = payload["journey_id"]
+    req_id = payload["requirement_id"]
+
+    # Claim-then-submit: atomically claim the requirement so a redelivered
+    # approval event can never file the same application twice — the
+    # "second laptop" guard. (Known tradeoff: a crash between claim and
+    # record leaves the claim held; a lease timestamp would recover it.)
+    def claim(j):
+        r = j.requirement(req_id)
+        if r is None or r.reference is not None or r.status == StepStatus.IN_PROGRESS:
+            return False
+        r.status = StepStatus.IN_PROGRESS
+        return True
+
+    journey, claimed = await ctx.store.mutate_journey(journey_id, claim)
+    if journey is None or not claimed:
         return
+    req = journey.requirement(req_id)
 
     ref = await ctx.gateway.submit(
-        req.authority, journey.id, req.key, payload.get("application", {})
+        req.authority, journey_id, req.key, payload.get("application", {})
     )
-    req.reference = ref
-    req.status = StepStatus.WAITING_EXTERNAL
-    await ctx.store.save_journey(journey)
-    await ctx.set_status(journey, JourneyStatus.AWAITING_AUTHORITY)
+
+    def record(j):
+        r = j.requirement(req_id)
+        if r is not None:
+            r.reference = ref
+            r.status = StepStatus.WAITING_EXTERNAL
+
+    await ctx.store.mutate_journey(journey_id, record)
+    await ctx.set_status(journey_id, JourneyStatus.AWAITING_AUTHORITY)
     await ctx.log(
-        journey.id, "liaison", "submission.sent",
+        journey_id, "liaison", "submission.sent",
         f"{req.title} submitted to {req.authority}. Reference: {ref}.",
     )
     await ctx.bus.publish(
-        events.SUBMISSION_SENT, {"journey_id": journey.id, "requirement_id": req.id}
+        events.SUBMISSION_SENT, {"journey_id": journey_id, "requirement_id": req_id}
     )
 
 
@@ -102,22 +121,34 @@ async def on_portal_response(ctx: Context, payload: dict) -> None:
             },
         )
         await ctx.store.create_approval(approval)
-        await ctx.set_status(journey, JourneyStatus.ACTION_REQUIRED)
+        await ctx.set_status(journey.id, JourneyStatus.ACTION_REQUIRED)
         await ctx.log(
             journey.id, "liaison", "reply.drafted",
             "Reply drafted with supporting documents attached; waiting for your one-tap approval.",
         )
 
     elif kind == "approved":
-        req.status = StepStatus.DONE
-        req.registration_number = payload.get("registration_number")
-        await ctx.store.save_journey(journey)
+        registration_number = payload.get("registration_number")
+
+        # Concurrent approvals from different authorities race on the same
+        # journey document: complete this requirement atomically.
+        def complete(j):
+            r = next((x for x in j.requirements if x.key == payload["requirement_key"]), None)
+            if r is None or r.status == StepStatus.DONE:  # duplicate delivery
+                return None
+            r.status = StepStatus.DONE
+            r.registration_number = registration_number
+            return all(x.status == StepStatus.DONE for x in j.requirements)
+
+        journey, all_done = await ctx.store.mutate_journey(journey.id, complete)
+        if journey is None or all_done is None:
+            return
         await ctx.log(
             journey.id, "portal", "portal.approved",
-            f"{req.title} APPROVED. Registration number: {req.registration_number}.",
+            f"{req.title} APPROVED. Registration number: {registration_number}.",
         )
-        if all(r.status == StepStatus.DONE for r in journey.requirements):
-            await ctx.set_status(journey, JourneyStatus.COMPLETED)
+        if all_done:
+            await ctx.set_status(journey.id, JourneyStatus.COMPLETED)
             await ctx.log(
                 journey.id, "liaison", "journey.completed",
                 "Every registration granted. Documents archived in the vault. 🎉",
@@ -141,7 +172,7 @@ async def on_notice_reply_approved(ctx: Context, payload: dict) -> None:
             if d.id == payload["deadline_id"]:
                 d.resolved = True
                 await ctx.store.save_deadline(d)
-    await ctx.set_status(journey, JourneyStatus.AWAITING_AUTHORITY)
+    await ctx.set_status(journey.id, JourneyStatus.AWAITING_AUTHORITY)
     await ctx.log(
         journey.id, "liaison", "reply.sent",
         f"Reply sent to {req.authority} well before the deadline.",

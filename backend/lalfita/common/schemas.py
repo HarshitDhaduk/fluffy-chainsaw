@@ -60,6 +60,8 @@ class DocumentRecord(BaseModel):
     id: str = Field(default_factory=lambda: new_id("doc"))
     kind: str  # pan | aadhaar | utility_bill | photo | ...
     filename: str
+    content_type: str | None = None
+    blob_uri: str | None = None  # mem:// locally, gs:// in cloud
     extracted: dict = {}
     issues: list[DocumentIssue] = []
 
@@ -114,6 +116,7 @@ class Journey(BaseModel):
     profile: dict = {}  # intake answers: turnover, premises, channels, ...
     status: JourneyStatus = JourneyStatus.INTAKE
     requirements: list[Requirement] = []
+    required_documents: list[str] = []  # kinds Clerk is waiting for
     documents: list[DocumentRecord] = []
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

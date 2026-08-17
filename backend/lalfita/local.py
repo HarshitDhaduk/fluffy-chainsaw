@@ -18,6 +18,7 @@ from .agents import registry
 from .agents.context import Context
 from .api.routes import build_router
 from .common import config, events
+from .common.blobs import InMemoryBlobStore
 from .common.bus import InProcessBus
 from .common.gateway import LocalGateway
 from .common.store import InMemoryStore
@@ -32,7 +33,9 @@ def build_app() -> tuple[FastAPI, Context]:
         await bus.publish(events.PORTAL_RESPONSE, payload)
 
     government = SandboxGovernment(notify=portal_notify)
-    ctx = Context(store=store, bus=bus, gateway=LocalGateway(government))
+    ctx = Context(
+        store=store, bus=bus, gateway=LocalGateway(government), blobs=InMemoryBlobStore()
+    )
     registry.bind(bus, ctx)
 
     @contextlib.asynccontextmanager

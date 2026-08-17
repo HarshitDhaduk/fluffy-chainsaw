@@ -13,7 +13,7 @@ async def on_requirements_determined(ctx: Context, payload: dict) -> None:
     if journey is None:
         return
 
-    await ctx.set_status(journey, JourneyStatus.PLANNING)
+    await ctx.set_status(journey.id, JourneyStatus.PLANNING)
     plan_lines = [
         f"{i + 1}. {r.title} — {r.form} via {r.authority}"
         for i, r in enumerate(journey.requirements)

@@ -24,11 +24,28 @@ export type Requirement = {
   registration_number: string | null;
 };
 
+export type DocumentIssue = {
+  document_kind: string;
+  field: string;
+  detail: string;
+  severity: "blocking" | "warning";
+};
+
+export type DocumentRecord = {
+  id: string;
+  kind: string;
+  filename: string;
+  extracted: Record<string, string>;
+  issues: DocumentIssue[];
+};
+
 export type Journey = {
   id: string;
   goal: string;
   status: string;
   requirements: Requirement[];
+  required_documents: string[];
+  documents: DocumentRecord[];
   timeline?: TimelineEntry[];
   approvals?: Approval[];
 };
@@ -50,6 +67,13 @@ export async function createJourney(goal: string, profile: object): Promise<{ jo
     body: JSON.stringify({ goal, profile }),
   });
   return res.json();
+}
+
+export async function uploadDocument(journeyId: string, kind: string, file: File): Promise<void> {
+  const form = new FormData();
+  form.append("kind", kind);
+  form.append("file", file);
+  await fetch(`${BASE}/journeys/${journeyId}/documents`, { method: "POST", body: form });
 }
 
 export async function decideApproval(approvalId: string, approve: boolean): Promise<void> {

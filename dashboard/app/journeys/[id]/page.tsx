@@ -1,7 +1,60 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { decideApproval, getJourney, type Journey } from "@/lib/api";
+import { decideApproval, getJourney, uploadDocument, type Journey } from "@/lib/api";
+
+const DOC_LABELS: Record<string, string> = {
+  pan: "PAN card",
+  aadhaar: "Aadhaar card",
+  utility_bill: "Electricity bill",
+};
+
+function DocumentSlot({
+  journeyId,
+  kind,
+  journey,
+  onDone,
+}: {
+  journeyId: string;
+  kind: string;
+  journey: Journey;
+  onDone: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const doc = journey.documents.find((d) => d.kind === kind);
+  const blocking = doc?.issues.some((i) => i.severity === "blocking");
+
+  async function onPick(file: File | undefined) {
+    if (!file) return;
+    setBusy(true);
+    try {
+      await uploadDocument(journeyId, kind, file);
+      onDone();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ marginBottom: "0.75rem" }}>
+      <strong>{DOC_LABELS[kind] ?? kind}</strong>{" "}
+      {doc ? (blocking ? "⚠️ needs a corrected upload" : "✅ " + doc.filename) : "— not uploaded"}
+      {doc?.issues.map((i, n) => (
+        <p key={n} style={{ fontSize: "0.85rem", margin: "0.25rem 0", color: "#92400e" }}>
+          {i.detail}
+        </p>
+      ))}
+      <div>
+        <input
+          type="file"
+          accept="image/*,.pdf"
+          disabled={busy}
+          onChange={(e) => onPick(e.target.files?.[0])}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function JourneyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -40,6 +93,21 @@ export default function JourneyPage({ params }: { params: Promise<{ id: string }
           ))}
         </ul>
       </div>
+
+      {journey.required_documents.length > 0 && journey.status !== "completed" && (
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Documents</h3>
+          {journey.required_documents.map((kind) => (
+            <DocumentSlot
+              key={kind}
+              journeyId={journey.id}
+              kind={kind}
+              journey={journey}
+              onDone={refresh}
+            />
+          ))}
+        </div>
+      )}
 
       {pending.length > 0 && (
         <div className="card" style={{ borderColor: "#f59e0b" }}>

@@ -65,4 +65,7 @@ MODE: str = os.environ.get("LALFITA_MODE", "local")
 GCP_PROJECT: str = os.environ.get("GCP_PROJECT", "")
 PUBSUB_TOPIC: str = os.environ.get("PUBSUB_TOPIC", "lalfita-events")
 SANDBOX_BASE_URL: str = os.environ.get("SANDBOX_BASE_URL", "http://localhost:8081")
+GCS_BUCKET: str = os.environ.get(
+    "GCS_BUCKET", f"{GCP_PROJECT}-lalfita-vault" if os.environ.get("GCP_PROJECT") else ""
+)
 AGENTS_WEBHOOK_URL: str = os.environ.get("AGENTS_WEBHOOK_URL", "http://localhost:8080/webhooks/portal")
