@@ -245,7 +245,7 @@ so vigilance survives restarts too.
 |---|---|---|---|---|
 | B1 | Real document upload + Gemini vision extraction | F3 | Agents | ✅ done Aug 17 |
 | B2 | Vertex switch (credits) + grounded Pathfinder + Pro model | F1 | Infra | Aug 20 |
-| B3 | First cloud deploy; GCP console screenshots start | F7/G6 | Infra | Aug 21 |
+| B3 | First cloud deploy; GCP console screenshots start | F7/G6 | Infra | scripts ready (Aug 17); first run pending — see docs/DEPLOY.md |
 | B4 | Idempotency guards on all handlers + duplicate-delivery tests | §8 R3 | Agents | ~70% done with B1 (atomic `mutate_journey`, claim-then-submit, dup tests); finish Aug 22 |
 | B5 | Dashboard polish: intake wizard, document upload UI, deadline countdown | F2/F4 | Dashboard | ✅ done Aug 17 |
 | B6 | Notification fan-out (email or push) | F8 | Sandbox/Integrations | Aug 25 |
