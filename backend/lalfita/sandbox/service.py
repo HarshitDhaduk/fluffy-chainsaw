@@ -2,7 +2,13 @@
 
 Deployed as its own Cloud Run service; responses are delivered back to the
 agents service via webhook POST, which keeps the decoupling honest — the
-agents never share a process with the 'government' in the cloud."""
+agents never share a process with the 'government' in the cloud. The agents
+service requires authentication, so webhooks carry an OIDC identity token
+minted for this service's runtime service account."""
+
+import asyncio
+import os
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import FastAPI
@@ -14,9 +20,22 @@ from .portals import SandboxGovernment
 app = FastAPI(title="LalFita Sandbox Government")
 
 
+def _id_token() -> str:
+    """Mint an OIDC token for the agents service (audience = service root)."""
+    import google.auth.transport.requests
+    from google.oauth2 import id_token
+
+    url = urlparse(config.AGENTS_WEBHOOK_URL)
+    audience = f"{url.scheme}://{url.netloc}"
+    return id_token.fetch_id_token(google.auth.transport.requests.Request(), audience)
+
+
 async def _webhook_notify(payload: dict) -> None:
+    headers = {}
+    if os.environ.get("K_SERVICE"):  # on Cloud Run, authenticate to the locked agents service
+        headers["Authorization"] = f"Bearer {await asyncio.to_thread(_id_token)}"
     async with httpx.AsyncClient(timeout=10) as client:
-        await client.post(config.AGENTS_WEBHOOK_URL, json=payload)
+        await client.post(config.AGENTS_WEBHOOK_URL, json=payload, headers=headers)
 
 
 government = SandboxGovernment(notify=_webhook_notify)
