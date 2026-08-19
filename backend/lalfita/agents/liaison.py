@@ -88,6 +88,20 @@ async def on_portal_response(ctx: Context, payload: dict) -> None:
         await ctx.log(journey.id, "portal", "portal.ack", f"{req.authority}: {payload['message']}")
 
     elif kind == "notice":
+        # Idempotency claim: at-least-once delivery must not create a second
+        # deadline + drafted reply for the same notice.
+        notice_key = f"notice_handled_{payload.get('reference', '')}"
+
+        def claim(j):
+            if j.meta.get(notice_key):
+                return False
+            j.meta[notice_key] = True
+            return True
+
+        journey, fresh = await ctx.store.mutate_journey(journey.id, claim)
+        if journey is None or not fresh:
+            return
+
         await ctx.log(
             journey.id, "portal", "portal.notice",
             f"{req.authority} clarification notice on {req.reference}: {payload['message']}",
@@ -126,6 +140,11 @@ async def on_portal_response(ctx: Context, payload: dict) -> None:
             journey.id, "liaison", "reply.drafted",
             "Reply drafted with supporting documents attached; waiting for your one-tap approval.",
         )
+        await ctx.notify(
+            journey.id, f"{req.authority} sent a notice — reply drafted",
+            f"{parsed.get('summary', payload['message'])} Reply due in "
+            f"{deadline_days:.0f} days; one tap to send.",
+        )
 
     elif kind == "approved":
         registration_number = payload.get("registration_number")
@@ -152,6 +171,10 @@ async def on_portal_response(ctx: Context, payload: dict) -> None:
             await ctx.log(
                 journey.id, "liaison", "journey.completed",
                 "Every registration granted. Documents archived in the vault. 🎉",
+            )
+            await ctx.notify(
+                journey.id, "Journey complete 🎉",
+                "Every registration granted — the numbers are in your vault.",
             )
             await ctx.bus.publish(events.JOURNEY_COMPLETED, {"journey_id": journey.id})
 

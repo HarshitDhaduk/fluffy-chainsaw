@@ -4,7 +4,11 @@
 param(
     [Parameter(Mandatory = $true)][string]$ProjectId,
     [string]$Region = "us-central1",
-    [string]$Topic = "lalfita-events"
+    [string]$Topic = "lalfita-events",
+    # Optional push notifications: pass your ntfy.sh topic and subscribe to it
+    # in the ntfy app.
+    [string]$NtfyTopic = "",
+    [string]$NotifyWebhookUrl = ""
 )
 
 $InvokerSa = "lalfita-invoker@$ProjectId.iam.gserviceaccount.com"
@@ -12,6 +16,8 @@ $Root = Split-Path -Parent $PSScriptRoot
 $CommonEnv = "LALFITA_MODE=cloud,GCP_PROJECT=$ProjectId,PUBSUB_TOPIC=$Topic," +
     "GCS_BUCKET=$ProjectId-lalfita-vault,GOOGLE_GENAI_USE_VERTEXAI=true," +
     "GOOGLE_CLOUD_PROJECT=$ProjectId,GOOGLE_CLOUD_LOCATION=$Region"
+if ($NtfyTopic) { $CommonEnv += ",NTFY_TOPIC=$NtfyTopic" }
+if ($NotifyWebhookUrl) { $CommonEnv += ",NOTIFY_WEBHOOK_URL=$NotifyWebhookUrl" }
 
 function Invoke-Checked([string]$Description, [scriptblock]$Command) {
     Write-Host "-> $Description"
@@ -63,7 +69,7 @@ $ApiUrl = Get-ServiceUrl "lalfita-api"
 Write-Host "-> Pub/Sub push subscription -> agents service (authenticated push)"
 gcloud pubsub subscriptions create lalfita-events-push --topic $Topic `
     --push-endpoint "$AgentsUrl/pubsub/push" `
-    --push-auth-service-account $InvokerSa --ack-deadline 60 2>$null
+    --push-auth-service-account $InvokerSa --ack-deadline 30 2>$null
 if ($LASTEXITCODE -ne 0) {
     Invoke-Checked "  (exists - updating push config)" {
         gcloud pubsub subscriptions modify-push-config lalfita-events-push `

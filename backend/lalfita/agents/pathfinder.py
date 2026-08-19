@@ -6,7 +6,7 @@ that's what makes the engine generalize beyond GST/FSSAI."""
 import json
 
 from ..common import events, llm
-from ..common.fixtures import PATHFINDER_DETERMINATION
+from ..common.fixtures import FREELANCE_DETERMINATION, PATHFINDER_DETERMINATION
 from ..common.schemas import JourneyStatus, Requirement
 from .context import Context
 
@@ -39,6 +39,15 @@ def build_agent():
     )
 
 
+def _fixture_for(goal: str) -> dict:
+    """Offline-mode determination, keyed on the goal so both demo presets work
+    without credentials. Live mode researches for real and ignores this."""
+    lowered = goal.lower()
+    if any(k in lowered for k in ("freelance", "studio", "design", "consult", "agency")):
+        return FREELANCE_DETERMINATION
+    return PATHFINDER_DETERMINATION
+
+
 async def on_journey_created(ctx: Context, payload: dict) -> None:
     journey = await ctx.store.get_journey(payload["journey_id"])
     if journey is None or journey.requirements:  # idempotency guard
@@ -48,7 +57,7 @@ async def on_journey_created(ctx: Context, payload: dict) -> None:
     await ctx.log(journey.id, "pathfinder", "research.started", f"Researching: “{journey.goal}”")
 
     prompt = f"Goal: {journey.goal}\nProfile: {json.dumps(journey.profile)}"
-    result = await llm.run_agent(build_agent, prompt, offline_fixture=PATHFINDER_DETERMINATION)
+    result = await llm.run_agent(build_agent, prompt, offline_fixture=_fixture_for(journey.goal))
     requirements = [Requirement.model_validate(r) for r in result["requirements"]]
 
     def apply(j):

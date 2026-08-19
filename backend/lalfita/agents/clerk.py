@@ -197,6 +197,10 @@ async def _validate(ctx: Context, journey_id: str) -> None:
                 payload={"document_kind": issue.document_kind, "field": issue.field},
             )
             await ctx.store.create_approval(approval)
+            await ctx.notify(
+                journey.id, "Document problem caught before filing",
+                f"{issue.document_kind}: {issue.detail}",
+            )
         return
 
     await ctx.log(journey.id, "clerk", "documents.validated", "All documents cross-check clean.")
@@ -233,3 +237,7 @@ async def _prepare_applications(ctx: Context, journey_id: str) -> None:
             f"{req.form} filled and queued for your approval.",
         )
     await ctx.set_status(journey_id, JourneyStatus.ACTION_REQUIRED)
+    await ctx.notify(
+        journey_id, "Applications ready",
+        f"{len(journey.requirements)} filled applications await your one-tap approval.",
+    )

@@ -13,6 +13,7 @@ from ..common import config, events
 from ..common.blobs import GcsBlobStore
 from ..common.bus import PubSubBus
 from ..common.gateway import HttpGateway
+from ..common.notify import build_notifier
 from ..common.store import FirestoreStore
 from . import registry
 from .context import Context
@@ -30,6 +31,7 @@ def get_ctx() -> Context:
             bus=PubSubBus(config.GCP_PROJECT, config.PUBSUB_TOPIC),
             gateway=HttpGateway(),
             blobs=GcsBlobStore(config.GCS_BUCKET) if config.GCS_BUCKET else None,
+            notifier=build_notifier(),
         )
     return _ctx
 

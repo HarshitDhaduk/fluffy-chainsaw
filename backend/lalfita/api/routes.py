@@ -88,6 +88,21 @@ def build_router(ctx: Context) -> APIRouter:
         )
         return {"document_id": doc.id}
 
+    @router.post("/journeys/{journey_id}/demo/crash")
+    async def demo_crash(journey_id: str) -> dict:
+        """Crash-recovery showpiece (F10): kill the agent fleet mid-journey and
+        watch it recover from durable state. Disable with LALFITA_DEMO_CONTROLS=0."""
+        import os
+
+        if os.environ.get("LALFITA_DEMO_CONTROLS", "1").lower() in ("0", "false"):
+            raise HTTPException(403, "demo controls disabled")
+        journey = await ctx.store.get_journey(journey_id)
+        if journey is None:
+            raise HTTPException(404, "journey not found")
+        await ctx.log(journey_id, "user", "crash.requested", "Requested a crash drill. 💣")
+        await ctx.bus.publish(events.DEMO_CRASH, {"journey_id": journey_id})
+        return {"ok": True}
+
     @router.post("/approvals/{approval_id}/decision")
     async def decide(approval_id: str, body: DecisionIn) -> dict:
         approval = await ctx.store.get_approval(approval_id)

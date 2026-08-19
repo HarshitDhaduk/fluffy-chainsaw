@@ -38,6 +38,45 @@ PATHFINDER_DETERMINATION = {
     ]
 }
 
+# Second journey preset (F9): a freelance services business. Different
+# requirement set proves the engine isn't hardcoded to the food journey.
+FREELANCE_DETERMINATION = {
+    "requirements": [
+        {
+            "key": "gst",
+            "title": "GST Registration",
+            "authority": "GST Network",
+            "form": "GST REG-01",
+            "why": (
+                "Registering lets you invoice clients with GST and claim input "
+                "credits; required once turnover crosses the services threshold "
+                "or for interstate clients."
+            ),
+            "citations": ["https://www.gst.gov.in/"],
+        },
+        {
+            "key": "udyam",
+            "title": "Udyam (MSME) Registration",
+            "authority": "Ministry of MSME",
+            "form": "Udyam Registration Form",
+            "why": "Unlocks MSME benefits, easier credit, and payment protections.",
+            "citations": ["https://udyamregistration.gov.in/"],
+        },
+        {
+            "key": "shop_establishment",
+            "title": "Shop & Establishment Intimation (Gumastadhara)",
+            "authority": "Municipal Corporation",
+            "form": "Form G",
+            "why": (
+                "Businesses operating within municipal limits must register under "
+                "the state Shops & Establishments Act; home offices file a simple "
+                "intimation."
+            ),
+            "citations": ["https://labour.gujarat.gov.in/"],
+        },
+    ]
+}
+
 # Keyed by document kind -> extracted fields. Note the name variants.
 CLERK_EXTRACTIONS = {
     "pan": {"name": "MEERA R SHAH", "number": "ABCPS1234F"},

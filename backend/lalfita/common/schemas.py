@@ -118,6 +118,7 @@ class Journey(BaseModel):
     requirements: list[Requirement] = []
     required_documents: list[str] = []  # kinds Clerk is waiting for
     documents: list[DocumentRecord] = []
+    meta: dict = {}  # idempotency claims (handled notice refs, crash drills, …)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
 

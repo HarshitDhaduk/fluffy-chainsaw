@@ -32,5 +32,5 @@ async def on_deadline_tick(ctx: Context, payload: dict) -> None:
                 f"⏰ Deadline approaching: “{deadline.label}” — "
                 f"{fraction:.0%} of the reply window remains."
             )
-        # TODO(team): fan out to email / push notification channels here.
         await ctx.log(deadline.journey_id, "sentinel", "deadline.escalation", detail)
+        await ctx.notify(deadline.journey_id, "Deadline warning", detail)

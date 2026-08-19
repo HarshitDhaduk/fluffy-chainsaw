@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import {
   decideApproval,
   getJourney,
+  simulateCrash,
   uploadDocument,
   type Deadline,
   type Journey,
@@ -180,6 +181,19 @@ export default function JourneyPage({ params }: { params: Promise<{ id: string }
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {journey.status !== "completed" && (
+        <div className="card" style={{ borderStyle: "dashed" }}>
+          <h3 style={{ marginTop: 0 }}>Chaos drill</h3>
+          <p style={{ fontSize: "0.85rem", color: "var(--muted)", margin: "0 0 0.5rem" }}>
+            Kill the agent fleet mid-journey. State is durable and events redeliver — watch the
+            timeline show the crash and the recovery.
+          </p>
+          <button className="secondary" onClick={() => simulateCrash(journey.id).then(refresh)}>
+            💥 Simulate a crash
+          </button>
         </div>
       )}
 

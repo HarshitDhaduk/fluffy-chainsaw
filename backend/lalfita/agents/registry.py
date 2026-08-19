@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 
 from ..common import events
 from ..common.schemas import ApprovalKind
-from . import clerk, liaison, pathfinder, planner, sentinel
+from . import chaos, clerk, liaison, pathfinder, planner, sentinel
 from .context import Context
 
 Handler = Callable[[Context, dict], Awaitable[None]]
@@ -28,6 +28,7 @@ ROUTES: dict[str, list[Handler]] = {
     events.APPROVAL_GRANTED: [_route_approval],
     events.PORTAL_RESPONSE: [liaison.on_portal_response],
     events.DEADLINE_TICK: [sentinel.on_deadline_tick],
+    events.DEMO_CRASH: [chaos.on_demo_crash],
 }
 
 

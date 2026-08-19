@@ -246,11 +246,11 @@ so vigilance survives restarts too.
 | B1 | Real document upload + Gemini vision extraction | F3 | Agents | ✅ done Aug 17 |
 | B2 | Vertex switch (credits) + grounded Pathfinder + Pro model | F1 | Infra | Aug 20 |
 | B3 | First cloud deploy; GCP console screenshots start | F7/G6 | Infra | scripts ready (Aug 17); first run pending — see docs/DEPLOY.md |
-| B4 | Idempotency guards on all handlers + duplicate-delivery tests | §8 R3 | Agents | ~70% done with B1 (atomic `mutate_journey`, claim-then-submit, dup tests); finish Aug 22 |
+| B4 | Idempotency guards on all handlers + duplicate-delivery tests | §8 R3 | Agents | ✅ done Aug 17 (notice claims, crash-safe meta markers, 4 dup-delivery tests) |
 | B5 | Dashboard polish: intake wizard, document upload UI, deadline countdown | F2/F4 | Dashboard | ✅ done Aug 17 |
-| B6 | Notification fan-out (email or push) | F8 | Sandbox/Integrations | Aug 25 |
-| B7 | Crash-recovery demo control | F10 | Agents | Aug 26 |
-| B8 | Second journey preset | F9 | Agents | Aug 26 |
+| B6 | Notification fan-out (ntfy push + webhook + timeline) | F8 | Sandbox/Integrations | ✅ done Aug 17 |
+| B7 | Crash-recovery demo control (chaos agent + dashboard button) | F10 | Agents | ✅ done Aug 17 |
+| B8 | Second journey preset (freelance studio) | F9 | Agents | ✅ done Aug 17 |
 | B9 | Lock demo script; freeze features | — | All | **Aug 27** |
 | B10 | Video shoot + edit; Devpost draft; architecture diagram final | — | All | Aug 28–29 |
 | B11 | Submit | — | All | **Aug 30** (buffer: 31st) |
@@ -266,10 +266,11 @@ so vigilance survives restarts too.
 
 ## 12. Open questions
 
-1. Notification channel for F8: email (simplest, demoable) vs FCM push —
-   decide by B5.
-2. Second preset (F9): freelance-services journey vs boutique/e-commerce —
-   pick whichever Pathfinder handles best ungrounded.
+1. ~~Notification channel for F8~~ — resolved: ntfy.sh push (zero-signup,
+   demoable on a phone) + optional Slack/Discord webhook, always mirrored
+   to the timeline.
+2. ~~Second preset (F9)~~ — resolved: freelance design studio (GST + Udyam
+   + Shop & Establishment).
 3. Do we show the Gujarat *Gumastadhara* requirement live Pathfinder keeps
    finding? (It's correct and impressive — but adds a 4th thread to the
    demo narrative. Lean: mention, don't demo.)

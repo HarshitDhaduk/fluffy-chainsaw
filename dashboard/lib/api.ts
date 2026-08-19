@@ -86,6 +86,10 @@ export async function uploadDocument(journeyId: string, kind: string, file: File
   await fetch(`${BASE}/journeys/${journeyId}/documents`, { method: "POST", body: form });
 }
 
+export async function simulateCrash(journeyId: string): Promise<void> {
+  await fetch(`${BASE}/journeys/${journeyId}/demo/crash`, { method: "POST" });
+}
+
 export async function decideApproval(approvalId: string, approve: boolean): Promise<void> {
   await fetch(`${BASE}/approvals/${approvalId}/decision`, {
     method: "POST",

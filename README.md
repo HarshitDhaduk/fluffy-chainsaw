@@ -76,7 +76,9 @@ docs/CONCEPT.md   concept, architecture, judging map, video script, build plan
 
 ## Status
 
-🚧 Walking skeleton complete — the full journey runs end-to-end offline
-(`make demo`, tests green). Next: live Gemini prompts, document upload +
-vision validation, dashboard polish, GCP deploy. Submission deadline:
-**August 31, 2026**.
+✅ Feature-complete for the P0+P1 scope: live Gemini agents (vision document
+validation included), intake wizard + live deadline countdowns, notification
+fan-out (ntfy push / webhook), crash-recovery chaos drill, two journey
+presets, idempotency guards with duplicate-delivery tests (8 tests green).
+Cloud deploy is turnkey (`infra/deploy.ps1` / `deploy.sh`) — pending billing
+activation on the GCP project. Submission deadline: **August 31, 2026**.

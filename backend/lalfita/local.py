@@ -21,6 +21,7 @@ from .common import config, events
 from .common.blobs import InMemoryBlobStore
 from .common.bus import InProcessBus
 from .common.gateway import LocalGateway
+from .common.notify import build_notifier
 from .common.store import InMemoryStore
 from .sandbox.portals import SandboxGovernment
 
@@ -34,7 +35,11 @@ def build_app() -> tuple[FastAPI, Context]:
 
     government = SandboxGovernment(notify=portal_notify)
     ctx = Context(
-        store=store, bus=bus, gateway=LocalGateway(government), blobs=InMemoryBlobStore()
+        store=store,
+        bus=bus,
+        gateway=LocalGateway(government),
+        blobs=InMemoryBlobStore(),
+        notifier=build_notifier(),
     )
     registry.bind(bus, ctx)
 

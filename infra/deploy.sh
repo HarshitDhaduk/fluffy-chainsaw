@@ -14,6 +14,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 gcloud config set project "$PROJECT_ID"
 
 COMMON_ENV="LALFITA_MODE=cloud,GCP_PROJECT=${PROJECT_ID},PUBSUB_TOPIC=${TOPIC},GCS_BUCKET=${PROJECT_ID}-lalfita-vault,GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION}"
+# Optional push notifications: export NTFY_TOPIC=<your-topic> before deploying
+# and subscribe to it in the ntfy app.
+if [ -n "${NTFY_TOPIC:-}" ]; then COMMON_ENV="${COMMON_ENV},NTFY_TOPIC=${NTFY_TOPIC}"; fi
+if [ -n "${NOTIFY_WEBHOOK_URL:-}" ]; then COMMON_ENV="${COMMON_ENV},NOTIFY_WEBHOOK_URL=${NOTIFY_WEBHOOK_URL}"; fi
 
 url_of() { gcloud run services describe "$1" --region "$REGION" --format 'value(status.url)'; }
 
@@ -54,7 +58,7 @@ gcloud pubsub subscriptions create lalfita-events-push \
   --topic "$TOPIC" \
   --push-endpoint "${AGENTS_URL}/pubsub/push" \
   --push-auth-service-account "$INVOKER_SA" \
-  --ack-deadline 60 2>/dev/null \
+  --ack-deadline 30 2>/dev/null \
   || gcloud pubsub subscriptions modify-push-config lalfita-events-push \
     --push-endpoint "${AGENTS_URL}/pubsub/push" \
     --push-auth-service-account "$INVOKER_SA"
