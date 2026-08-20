@@ -33,6 +33,17 @@ def days(n: float) -> timedelta:
     return timedelta(seconds=n * SIM_DAY_SECONDS)
 
 
+# How long a worker's claim on an outbound submission stays valid. This is
+# REAL time, not sim time: it must comfortably exceed one submit attempt (so a
+# concurrent redelivery can't double-file) while staying short enough that a
+# crashed worker's claim is reclaimed promptly.
+SUBMIT_LEASE_SECONDS: float = float(os.environ.get("SUBMIT_LEASE_SECONDS", "30"))
+
+
+def submit_lease() -> timedelta:
+    return timedelta(seconds=SUBMIT_LEASE_SECONDS)
+
+
 # --- LLM --------------------------------------------------------------------
 # Offline mode returns canned fixture responses so the walking skeleton runs
 # end-to-end with no credentials. It is on by default unless Gemini access is

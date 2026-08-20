@@ -46,6 +46,12 @@ make dev        # walking-skeleton API on :8080
 make dashboard  # Next.js UI on :3000 (separate terminal)
 ```
 
+To prove it heals itself:
+
+```bash
+make evals      # 20 fault-injection scenarios × 3 seeds → docs/EVALS.md
+```
+
 ## Repository map
 
 ```
@@ -66,9 +72,11 @@ docs/CONCEPT.md   concept, architecture, judging map, video script, build plan
 
 ## Documents
 
-- **[docs/PRD.md](docs/PRD.md)** — product requirements: features (F1–F11
+- **[docs/PRD.md](docs/PRD.md)** — product requirements: features (F1–F12
   with priorities), ADK 2 orchestration patterns as applied here,
   long-running/idempotency discipline, build plan to Aug 31.
+- **[docs/EVALS.md](docs/EVALS.md)** — self-healing evaluation report: the
+  rubric, the fault-injection scenario matrix, and what building it fixed.
 - **[docs/CONCEPT.md](docs/CONCEPT.md)** — full concept: flagship demo
   journey, agent fleet design, architecture, judging-criteria mapping,
   demo video script, and the two-week build plan.

@@ -5,6 +5,8 @@ parses notices with Gemini, drafts replies, and marks the journey complete
 when every registration lands. The 2 AM clarification-notice moment lives
 here."""
 
+from datetime import datetime
+
 from ..common import config, events, llm
 from ..common.fixtures import LIAISON_NOTICE_PARSE
 from ..common.schemas import (
@@ -37,16 +39,25 @@ def build_agent():
 async def on_submission_approved(ctx: Context, payload: dict) -> None:
     journey_id = payload["journey_id"]
     req_id = payload["requirement_id"]
+    lease_key = f"submit_lease_{req_id}"
 
     # Claim-then-submit: atomically claim the requirement so a redelivered
     # approval event can never file the same application twice — the
-    # "second laptop" guard. (Known tradeoff: a crash between claim and
-    # record leaves the claim held; a lease timestamp would recover it.)
+    # "second laptop" guard. The claim carries a lease timestamp: if the
+    # holder crashes between claim and record, a redelivery after the lease
+    # window reclaims and retries (the portal's own idempotency key makes
+    # that retry safe even when the first submit did land).
     def claim(j):
         r = j.requirement(req_id)
-        if r is None or r.reference is not None or r.status == StepStatus.IN_PROGRESS:
+        if r is None or r.reference is not None:
             return False
+        if r.status == StepStatus.IN_PROGRESS:
+            lease = j.meta.get(lease_key)
+            if lease and (utcnow() - datetime.fromisoformat(lease)) < config.submit_lease():
+                return False  # a live worker holds the claim
+            # Stale lease: the holder died mid-submit — reclaim.
         r.status = StepStatus.IN_PROGRESS
+        j.meta[lease_key] = utcnow().isoformat()
         return True
 
     journey, claimed = await ctx.store.mutate_journey(journey_id, claim)
@@ -82,6 +93,32 @@ async def on_portal_response(ctx: Context, payload: dict) -> None:
     req = next((r for r in journey.requirements if r.key == payload["requirement_key"]), None)
     if req is None:
         return
+
+    # Reconcile from external truth: if a crash lost our record of the
+    # application reference, the authority's own message carries it. Adopting
+    # it here is what lets a journey heal instead of stalling on a filing we
+    # can no longer name.
+    if not req.reference and payload.get("reference"):
+        adopted = payload["reference"]
+
+        def adopt(j):
+            r = next((x for x in j.requirements if x.key == payload["requirement_key"]), None)
+            if r is not None and not r.reference:
+                r.reference = adopted
+                r.status = StepStatus.WAITING_EXTERNAL
+                return True
+            return False
+
+        journey, healed = await ctx.store.mutate_journey(journey.id, adopt)
+        if journey is None:
+            return
+        req = next((r for r in journey.requirements if r.key == payload["requirement_key"]), None)
+        if healed:
+            await ctx.log(
+                journey.id, "liaison", "reference.reconciled",
+                f"🛡️ Recovered the {req.authority} reference {adopted} from their own "
+                "message — our record was lost mid-filing.",
+            )
 
     kind = payload["kind"]
     if kind == "ack":
@@ -180,10 +217,26 @@ async def on_portal_response(ctx: Context, payload: dict) -> None:
 
 
 async def on_notice_reply_approved(ctx: Context, payload: dict) -> None:
-    journey = await ctx.store.get_journey(payload["journey_id"])
-    req = journey.requirement(payload["requirement_id"]) if journey else None
-    if journey is None or req is None:
+    journey_id = payload["journey_id"]
+    req_id = payload["requirement_id"]
+
+    # Same claim-then-act discipline as submissions: a redelivered approval
+    # must not send the authority a second reply.
+    def claim(j):
+        r = j.requirement(req_id)
+        if r is None:
+            return None
+        key = f"reply_lease_{r.reference or req_id}"
+        lease = j.meta.get(key)
+        if lease and (utcnow() - datetime.fromisoformat(lease)) < config.submit_lease():
+            return None
+        j.meta[key] = utcnow().isoformat()
+        return r.id
+
+    journey, claimed = await ctx.store.mutate_journey(journey_id, claim)
+    if journey is None or claimed is None:
         return
+    req = journey.requirement(req_id)
 
     await ctx.gateway.reply(
         req.authority, req.reference or "", journey.id, req.key,

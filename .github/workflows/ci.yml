@@ -21,7 +21,17 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Lint
         run: ruff check .
-      - name: Test (offline walking skeleton)
+      - name: Test (offline walking skeleton + self-healing scenarios)
         run: pytest -q
         env:
           LALFITA_OFFLINE: "1"
+      - name: Self-healing evals
+        run: python -m evals.runner
+        env:
+          LALFITA_OFFLINE: "1"
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: backend/evals/report/

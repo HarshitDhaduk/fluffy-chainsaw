@@ -58,7 +58,23 @@ async def on_journey_created(ctx: Context, payload: dict) -> None:
 
     prompt = f"Goal: {journey.goal}\nProfile: {json.dumps(journey.profile)}"
     result = await llm.run_agent(build_agent, prompt, offline_fixture=_fixture_for(journey.goal))
-    requirements = [Requirement.model_validate(r) for r in result["requirements"]]
+
+    # Never let a malformed model reply stall the journey: validate the shape
+    # and degrade to the built-in determination if it doesn't hold.
+    try:
+        requirements = [Requirement.model_validate(r) for r in result["requirements"]]
+        if not requirements:
+            raise ValueError("empty requirements list")
+    except Exception:
+        requirements = [
+            Requirement.model_validate(r)
+            for r in _fixture_for(journey.goal)["requirements"]
+        ]
+        await ctx.log(
+            journey.id, "pathfinder", "research.degraded",
+            "⚠️ Research output was malformed; fell back to the built-in "
+            "determination for this goal so the journey keeps moving.",
+        )
 
     def apply(j):
         if not j.requirements:  # idempotency under redelivery

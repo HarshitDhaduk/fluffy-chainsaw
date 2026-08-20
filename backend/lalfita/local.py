@@ -25,21 +25,36 @@ from .common.notify import build_notifier
 from .common.store import InMemoryStore
 from .sandbox.portals import SandboxGovernment
 
+_UNSET = object()
 
-def build_app() -> tuple[FastAPI, Context]:
-    bus = InProcessBus()
-    store = InMemoryStore()
+
+def build_app(
+    *,
+    bus=None,
+    store=None,
+    wrap_gateway=None,
+    notifier=_UNSET,
+) -> tuple[FastAPI, Context]:
+    """Compose the walking skeleton. The keyword seams exist for the eval
+    harness (backend/evals) to inject faulty implementations without touching
+    agent code; default behavior is unchanged."""
+    bus = bus or InProcessBus()
+    store = store or InMemoryStore()
 
     async def portal_notify(payload: dict) -> None:
         await bus.publish(events.PORTAL_RESPONSE, payload)
 
     government = SandboxGovernment(notify=portal_notify)
+    gateway = LocalGateway(government)
+    if wrap_gateway is not None:
+        gateway = wrap_gateway(gateway)
+
     ctx = Context(
         store=store,
         bus=bus,
-        gateway=LocalGateway(government),
+        gateway=gateway,
         blobs=InMemoryBlobStore(),
-        notifier=build_notifier(),
+        notifier=build_notifier() if notifier is _UNSET else notifier,
     )
     registry.bind(bus, ctx)
 
@@ -61,6 +76,7 @@ def build_app() -> tuple[FastAPI, Context]:
         CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
     )
     app.include_router(build_router(ctx))
+    app.state.government = government  # exposed for evals (side-effect ground truth)
 
     return app, ctx
 

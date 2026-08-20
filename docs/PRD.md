@@ -140,6 +140,17 @@ untouched. (The architecture already supports this; the feature is making it
 ### F11 — Fleet dashboard, real portal integrations, vernacular UI (P2 —
 roadmap slide only.)
 
+### F12 — Self-healing evaluation suite (P1, shipped)
+A fault-injection harness and scored rubric that measure the claims in §8
+instead of asserting them: 20 scenarios × 3 seeds covering duplicate and
+lost event delivery, crashes on either side of a filing, model failures and
+malformed output, portal timeouts, and notification outages. Faults are
+injected by wrapping the dependencies agents already use, so agent code is
+never modified. `make evals` regenerates **docs/EVALS.md**; a second opt-in
+tier (`make evals-live`) scores live-model judgement.
+*Acceptance:* every scenario green across seeds; the negative control (guard
+removed) turns the exactly-once criterion red.
+
 ## 6. How it works — journey lifecycle
 
 ```
@@ -251,6 +262,7 @@ so vigilance survives restarts too.
 | B6 | Notification fan-out (ntfy push + webhook + timeline) | F8 | Sandbox/Integrations | ✅ done Aug 17 |
 | B7 | Crash-recovery demo control (chaos agent + dashboard button) | F10 | Agents | ✅ done Aug 17 |
 | B8 | Second journey preset (freelance studio) | F9 | Agents | ✅ done Aug 17 |
+| B12 | Self-healing eval suite + rubric + CI wiring | F12 | Agents | ✅ done Aug 17 |
 | B9 | Lock demo script; freeze features | — | All | **Aug 27** |
 | B10 | Video shoot + edit; Devpost draft; architecture diagram final | — | All | Aug 28–29 |
 | B11 | Submit | — | All | **Aug 30** (buffer: 31st) |

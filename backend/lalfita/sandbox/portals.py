@@ -28,13 +28,31 @@ class SandboxGovernment:
         self._notify = notify
         self._tasks: set[asyncio.Task] = set()
         self._pending_replies: dict[str, dict] = {}
+        # Idempotency ledger: real portals refuse a second application for the
+        # same applicant+registration, so the sandbox does too. This is the
+        # server-side half of exactly-once (the client half is Liaison's
+        # claim-then-submit); the eval suite reads these as ground truth.
+        self._applications: dict[tuple[str, str], str] = {}  # (journey, key) -> ref
+        self.accepted_applications: list[tuple[str, str, str]] = []
+        self.accepted_replies: list[str] = []
 
     # -- public "portal" surface ---------------------------------------------
 
     async def submit(
         self, authority: str, journey_id: str, requirement_key: str, application: dict
     ) -> str:
+        dedupe_key = (journey_id, requirement_key)
+        if dedupe_key in self._applications:
+            existing = self._applications[dedupe_key]
+            log.info(
+                "[sandbox:%s] duplicate application for %s ignored; returning %s",
+                authority, dedupe_key, existing,
+            )
+            return existing
+
         ref = new_id("arn").upper()
+        self._applications[dedupe_key] = ref
+        self.accepted_applications.append((journey_id, requirement_key, ref))
         log.info("[sandbox:%s] received application %s", authority, ref)
         if requirement_key == "gst":
             self._later(0.5, self._respond(journey_id, requirement_key, ref, "ack"))
@@ -47,8 +65,12 @@ class SandboxGovernment:
         return ref
 
     async def reply(self, ref: str, journey_id: str, requirement_key: str, body: dict) -> None:
+        if ref not in self._pending_replies:  # idempotent: duplicate/late replies ignored
+            log.info("[sandbox] reply for %s has no pending notice; ignored", ref)
+            return
         log.info("[sandbox] received notice reply for %s", ref)
         self._pending_replies.pop(ref, None)
+        self.accepted_replies.append(ref)
         self._later(1.5, self._respond(journey_id, requirement_key, ref, "approved"))
 
     # -- internals -------------------------------------------------------------
