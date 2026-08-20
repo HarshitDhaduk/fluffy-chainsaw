@@ -49,7 +49,9 @@ make dashboard  # Next.js UI on :3000 (separate terminal)
 To prove it heals itself:
 
 ```bash
-make evals      # 20 fault-injection scenarios × 3 seeds → docs/EVALS.md
+make evals          # 28 fault-injection scenarios × 3 seeds → docs/EVALS.md
+make evals-durable  # SIGKILL a real process mid-journey; it resumes from disk
+make evals-soak     # 50 journeys with random multi-fault cocktails
 ```
 
 ## Repository map
@@ -87,6 +89,8 @@ docs/CONCEPT.md   concept, architecture, judging map, video script, build plan
 ✅ Feature-complete for the P0+P1 scope: live Gemini agents (vision document
 validation included), intake wizard + live deadline countdowns, notification
 fan-out (ntfy push / webhook), crash-recovery chaos drill, two journey
-presets, idempotency guards with duplicate-delivery tests (8 tests green).
-Cloud deploy is turnkey (`infra/deploy.ps1` / `deploy.sh`) — pending billing
-activation on the GCP project. Submission deadline: **August 31, 2026**.
+presets, and self-healing verified by evaluation rather than assertion —
+28 fault-injection scenarios × 3 seeds, a real SIGKILL restart test, and a
+50-journey random-fault soak, all green (44 tests). Cloud deploy is turnkey
+(`infra/deploy.ps1` / `deploy.sh`) — pending billing activation on the GCP
+project. Submission deadline: **August 31, 2026**.

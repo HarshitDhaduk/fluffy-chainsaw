@@ -9,5 +9,6 @@ APPROVAL_GRANTED = "approval.granted"  # api -> clerk/liaison (payload.kind rout
 SUBMISSION_SENT = "submission.sent"  # liaison -> (timeline)
 PORTAL_RESPONSE = "portal.response"  # sandbox/webhook -> liaison
 DEADLINE_TICK = "deadline.tick"  # scheduler -> sentinel
+RESYNC_REQUESTED = "resync.requested"  # sentinel -> liaison (missed notification)
 DEMO_CRASH = "demo.crash"  # api -> chaos (crash-recovery showpiece, F10)
 JOURNEY_COMPLETED = "journey.completed"  # liaison -> (timeline)

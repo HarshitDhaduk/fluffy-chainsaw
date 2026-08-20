@@ -28,6 +28,7 @@ ROUTES: dict[str, list[Handler]] = {
     events.APPROVAL_GRANTED: [_route_approval],
     events.PORTAL_RESPONSE: [liaison.on_portal_response],
     events.DEADLINE_TICK: [sentinel.on_deadline_tick],
+    events.RESYNC_REQUESTED: [liaison.on_resync_requested],
     events.DEMO_CRASH: [chaos.on_demo_crash],
 }
 

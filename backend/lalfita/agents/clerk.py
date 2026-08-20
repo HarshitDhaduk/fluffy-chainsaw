@@ -67,12 +67,17 @@ async def on_plan_ready(ctx: Context, payload: dict) -> None:
     journey_id = payload["journey_id"]
 
     def setup(j):
-        if j.required_documents:  # idempotency guard
+        # Resumable, not merely idempotent: a crash between "documents
+        # requested" and "documents ingested" used to leave the guard set with
+        # the work unfinished, and no redelivery could ever get past it.
+        wants_demo = bool(j.profile.get("demo_documents"))
+        already_set_up = bool(j.required_documents) and (bool(j.documents) or not wants_demo)
+        if already_set_up:
             return False
         j.required_documents = list(REQUIRED_DOCUMENTS)
         # Demo/test path: explicit opt-in loads fixture documents instead of
         # waiting for uploads, so the terminal demo and CI run unattended.
-        if j.profile.get("demo_documents"):
+        if wants_demo and not j.documents:
             j.documents = [
                 DocumentRecord(kind=kind, filename=f"{kind}.jpg", extracted=fields)
                 for kind, fields in CLERK_EXTRACTIONS.items()
@@ -80,7 +85,31 @@ async def on_plan_ready(ctx: Context, payload: dict) -> None:
         return True
 
     journey, fresh = await ctx.store.mutate_journey(journey_id, setup)
-    if journey is None or not fresh:
+    if journey is None:
+        return
+    if not fresh:
+        # Setup was already done — but was the work finished? If documents are
+        # in hand and no gate was ever raised, validation died partway and this
+        # redelivery is our chance to finish it.
+        approvals = await ctx.store.list_approvals(journey_id)
+        documents_ready = bool(journey.documents) and all(
+            d.extracted for d in journey.documents
+        )
+        if not approvals and documents_ready:
+            await _validate(ctx, journey_id)
+            return
+        blocked = any(
+            a.kind == ApprovalKind.DOCUMENT_FIX and a.status == ApprovalStatus.PENDING
+            for a in approvals
+        )
+        covered = {
+            a.payload.get("requirement_id")
+            for a in approvals
+            if a.kind == ApprovalKind.SUBMISSION
+        }
+        missing_gates = [r for r in journey.requirements if r.id not in covered]
+        if documents_ready and missing_gates and not blocked:
+            await _prepare_applications(ctx, journey_id)
         return
 
     if journey.profile.get("demo_documents"):
@@ -212,13 +241,20 @@ async def _prepare_applications(ctx: Context, journey_id: str) -> None:
     if journey is None:
         return
 
-    # Idempotency guard (the "second laptop" trap): a redelivered event must
-    # not queue a second round of submission approvals.
+    # Idempotent per requirement, not per journey: a redelivered event must
+    # not queue a second approval for the same registration, but one failed
+    # write must not strand the registrations that never got theirs.
     existing = await ctx.store.list_approvals(journey_id)
-    if any(a.kind == ApprovalKind.SUBMISSION for a in existing):
-        return
+    already = {
+        a.payload.get("requirement_id")
+        for a in existing
+        if a.kind == ApprovalKind.SUBMISSION
+    }
 
+    prepared = 0
     for req in journey.requirements:
+        if req.id in already:
+            continue
         application = {
             "form": req.form,
             "applicant": journey.profile.get("applicant_name", "Applicant"),
@@ -232,12 +268,16 @@ async def _prepare_applications(ctx: Context, journey_id: str) -> None:
             payload={"requirement_id": req.id, "application": application},
         )
         await ctx.store.create_approval(approval)
+        prepared += 1
         await ctx.log(
             journey.id, "clerk", "application.prepared",
             f"{req.form} filled and queued for your approval.",
         )
+
+    if not prepared:
+        return
     await ctx.set_status(journey_id, JourneyStatus.ACTION_REQUIRED)
     await ctx.notify(
         journey_id, "Applications ready",
-        f"{len(journey.requirements)} filled applications await your one-tap approval.",
+        f"{prepared} filled application(s) await your one-tap approval.",
     )

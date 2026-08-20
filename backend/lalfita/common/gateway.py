@@ -21,6 +21,11 @@ class PortalGateway:
     ) -> None:
         raise NotImplementedError
 
+    async def status(self, authority: str, ref: str) -> dict | None:
+        """Ask the authority where an application stands. Used when a pushed
+        notification never arrived — see Liaison's resync path."""
+        raise NotImplementedError
+
 
 class LocalGateway(PortalGateway):
     def __init__(self, government) -> None:  # SandboxGovernment
@@ -31,6 +36,9 @@ class LocalGateway(PortalGateway):
 
     async def reply(self, authority, ref, journey_id, requirement_key, body) -> None:
         await self._government.reply(ref, journey_id, requirement_key, body)
+
+    async def status(self, authority, ref) -> dict | None:
+        return self._government.status(ref)
 
 
 class HttpGateway(PortalGateway):
@@ -57,3 +65,11 @@ class HttpGateway(PortalGateway):
                 json={"journey_id": journey_id, "requirement_key": requirement_key, "body": body},
             )
             resp.raise_for_status()
+
+    async def status(self, authority, ref) -> dict | None:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(f"{self._base}/portals/{authority}/applications/{ref}")
+            if resp.status_code == 404:
+                return None
+            resp.raise_for_status()
+            return resp.json()

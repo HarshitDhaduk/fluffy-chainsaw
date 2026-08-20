@@ -1,6 +1,6 @@
 # LalFita self-healing evaluation report
 
-**Verdict: PASS** · commit `d483386` · 20 scenarios × 3 seeds · offline and deterministic
+**Verdict: PASS** · commit `f959d14` · 28 scenarios × 3 seeds · offline and deterministic
 
 LalFita's central claim is that a journey survives crashes, duplicate
 event delivery, model failures and flaky dependencies without human
@@ -13,14 +13,14 @@ modified or aware it is being tested**.
 
 | ID | Criterion | Threshold | Runs judged | Pass rate | Result |
 |----|-----------|-----------|-------------|-----------|--------|
-| C1 | Fault detection & visibility | 100% of faulted runs | 48 | 100% | ✅ pass |
-| C2 | Autonomous recovery (liveness) | completes within tick budget | 60 | 100% | ✅ pass |
-| C3 | Exactly-once side effects (hard-fail) | 0 duplicates | 60 | 100% | ✅ pass |
-| C4 | State integrity under concurrency | 0 violations | 60 | 100% | ✅ pass |
+| C1 | Fault detection & visibility | 100% of faulted runs | 51 | 100% | ✅ pass |
+| C2 | Autonomous recovery (liveness) | completes within tick budget | 84 | 100% | ✅ pass |
+| C3 | Exactly-once side effects (hard-fail) | 0 duplicates | 84 | 100% | ✅ pass |
+| C4 | State integrity under concurrency | 0 violations | 84 | 100% | ✅ pass |
 | C5 | Graceful degradation | completes + visible | 6 | 100% | ✅ pass |
-| C6 | Deadline safety | no missed escalations | 3 | 100% | ✅ pass |
-| C7 | Bounded autonomy (hard-fail) | 0 unauthorized | 60 | 100% | ✅ pass |
-| C8 | Audit completeness | 100% milestones | 60 | 100% | ✅ pass |
+| C6 | Deadline safety | no missed escalations | 6 | 100% | ✅ pass |
+| C7 | Bounded autonomy (hard-fail) | 0 unauthorized | 84 | 100% | ✅ pass |
+| C8 | Audit completeness | 100% milestones | 84 | 100% | ✅ pass |
 
 ## Scenario matrix
 
@@ -46,12 +46,20 @@ modified or aware it is being tested**.
 | S17 | Notification channels down | every notifier send raises | ✅ | Best-effort delivery: the timeline still records what was sent. |
 | S18 | Second preset under duplicate delivery | freelance journey with duplicated approvals | ✅ | Self-healing is a property of the engine, not of one script. |
 | S19 | Nothing is approved | none; the human never responds at all | ✅ | Bounded autonomy: with no approvals, nothing is ever filed. |
+| D1 | Transaction aborts under contention | the first three journey mutations are rejected by the store | ✅ | Firestore aborts contended transactions; the retry must be clean. |
+| D2 | Ambiguous write (committed, but reported failed) | a journey mutation commits and then reports failure | ✅ | The write landed but the caller believes it did not — the case that breaks naive retries and can double-file. |
+| D3 | Store reads fail transiently | get_journey fails four times | ✅ | A handler that cannot read must fail loudly and be redelivered. |
+| D4 | Audit writes fail | timeline appends fail three times | ✅ | Losing an audit line must not lose the journey. |
+| D5 | Slow store | every mutation takes 120ms | ✅ | Latency must not turn into lost updates or duplicate filings. |
+| D6 | Scheduler outage | deadline ticks stop for a long stretch, then resume | ✅ | Cloud Scheduler goes down across the whole escalation ladder; on catch-up the human must still be warned. |
+| D7 | Zombie events from the past | every portal response is also replayed much later | ✅ | Late and out-of-order arrivals must not regress a finished journey. |
+| D8 | Poison pill | one handler's store write fails on every delivery | ✅ | Retries eventually exhaust; a human must learn rather than the journey dying in silence. |
 
 ## Headline numbers
 
 - **0 duplicate outbound side effects** across every run — no
   application was ever filed twice, however often events were redelivered.
-- 12 injected crashes, 15 redeliveries absorbed.
+- 441 injected crashes, 51 redeliveries absorbed.
 
 ## How faults are injected
 
@@ -62,6 +70,27 @@ modified or aware it is being tested**.
 | `CountingGateway` | Ledger of every outbound attempt — ground truth for exactly-once |
 | `FlakyLLM` | Model call failures and malformed/unparseable output |
 | `ExplodingNotifier` | Notification channel outage |
+
+## Durability: surviving the process, not just the fault
+
+Scenarios D1–D8 fault the one dependency the first round never
+touched — the store itself — and stop the clock while nobody is
+watching. Alongside them, `make evals-durable` runs the strict test:
+a real `uvicorn` process is **SIGKILLed** mid-journey and a fresh one
+is started on the same file. Nothing in memory survives that, so
+whatever the new process knows, it read from disk.
+
+The authorities' pushed notifications, however, are gone for good —
+they fired while the fleet was dead. That is not a simulation
+artifact; it is what happens when an email arrives during an outage.
+So the journey must notice the silence and **go and ask**: the
+Sentinel sweeps for work that has stopped moving, and Liaison
+reconciles each filing against the authority's own record. A restart
+became a pause instead of an ending.
+
+`make evals-soak` adds the faults nobody thought to write down: 50
+journeys, each with a random cocktail of bus, store, model and portal
+failures. Any failure reprints its seed for exact reproduction.
 
 ## What building these evals changed
 
@@ -88,6 +117,28 @@ earned its place by finding these before a judge or a user did:
    `requirements` key raised, and nothing retried the journey.
    Pathfinder now validates the shape and degrades to its built-in
    determination, visibly, on the timeline.
+
+The durability round found four more, all the same shape: **a claim
+recorded before the work it guards was finished.**
+
+6. **Documents requested but never validated.** Clerk marked setup
+   done, then died before validating; every redelivery bounced off
+   its own guard. Guards are now resumable, not merely idempotent.
+7. **One failed write stranded one registration.** Application gates
+   were prepared all-or-nothing, so a single failed approval write
+   left that registration with no gate forever. Preparation is now
+   per-registration.
+8. **A notice marked handled with nothing to show for it.** If the
+   drafted reply never reached the user, the claim still said
+   "handled" and the deadline ran out in silence. Reconciliation now
+   reopens a notice whose reply never materialised, retiring the
+   abandoned countdown so the user never sees two.
+9. **Nothing ever tried again.** When retries exhausted or a lease
+   blocked them, the journey simply stopped. The Sentinel now
+   reconciles stalled journeys against their stored state and
+   re-emits whatever would move them forward — and escalates to a
+   human when repeated attempts get nowhere, rather than retrying
+   quietly forever.
 
 ## Why these evals can fail
 

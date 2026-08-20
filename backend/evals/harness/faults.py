@@ -45,6 +45,7 @@ class FaultPlan:
     bus: list[BusFault] = field(default_factory=list)
     llm: list[LlmFault] = field(default_factory=list)
     gateway: list[GatewayFault] = field(default_factory=list)
+    store: list = field(default_factory=list)  # list[StoreFault]
     notifier_raises: bool = False
     max_redeliveries: int = 3
     # Redelivery backoff models Pub/Sub's ack deadline: it must exceed the

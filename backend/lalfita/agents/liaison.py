@@ -5,6 +5,7 @@ parses notices with Gemini, drafts replies, and marks the journey complete
 when every registration lands. The 2 AM clarification-notice moment lives
 here."""
 
+import logging
 from datetime import datetime
 
 from ..common import config, events, llm
@@ -18,6 +19,8 @@ from ..common.schemas import (
     utcnow,
 )
 from .context import Context
+
+log = logging.getLogger(__name__)
 
 INSTRUCTION = """You are Liaison, handling correspondence with Indian government
 portals. Given a notice from an authority, classify it and draft a reply.
@@ -253,3 +256,76 @@ async def on_notice_reply_approved(ctx: Context, payload: dict) -> None:
         journey.id, "liaison", "reply.sent",
         f"Reply sent to {req.authority} well before the deadline.",
     )
+
+
+async def on_resync_requested(ctx: Context, payload: dict) -> None:
+    """Go and ask the authority where things stand.
+
+    Pushed notifications get missed — our service was down when they fired,
+    a webhook exhausted its retries, an email went astray. An agent that only
+    reacts to pushes stalls forever; one that reconciles against the
+    authority's own record heals itself. The answer is fed back through the
+    normal portal-response path, so every idempotency guard still applies."""
+    journey = await ctx.store.get_journey(payload["journey_id"])
+    if journey is None:
+        return
+
+    for req in journey.requirements:
+        if req.status != StepStatus.WAITING_EXTERNAL or not req.reference:
+            continue
+        try:
+            current = await ctx.gateway.status(req.authority, req.reference)
+        except Exception:
+            log.exception("resync failed for %s", req.reference)
+            continue
+        if not current or current.get("kind") in (None, "pending"):
+            continue
+
+        # Only act on news: an "ack" we already logged is not worth repeating.
+        if current["kind"] == "ack" and journey.meta.get(f"ack_seen_{req.reference}"):
+            continue
+
+        if current["kind"] == "notice" and journey.meta.get(
+            f"notice_handled_{req.reference}"
+        ):
+            # "Handled" is a claim, not proof of completion. If the drafted
+            # reply never made it in front of the human, the claim is stale
+            # and the notice must be worked again — otherwise a single failed
+            # write strands the journey until its deadline expires.
+            approvals = await ctx.store.list_approvals(journey.id)
+            drafted = any(
+                a.kind == ApprovalKind.NOTICE_REPLY
+                and a.payload.get("requirement_id") == req.id
+                for a in approvals
+            )
+            if drafted:
+                continue
+
+            def release(j, ref=req.reference):
+                j.meta.pop(f"notice_handled_{ref}", None)
+
+            await ctx.store.mutate_journey(journey.id, release)
+            # Retire the clock from the abandoned attempt; the fresh cycle
+            # starts its own, so the user never sees two countdowns for one
+            # notice.
+            for deadline in await ctx.store.list_deadlines(journey.id):
+                if not deadline.resolved and req.reference in deadline.label:
+                    deadline.resolved = True
+                    await ctx.store.save_deadline(deadline)
+            await ctx.log(
+                journey.id, "liaison", "notice.reopened",
+                f"The {req.authority} notice was marked handled but no reply "
+                "ever reached you — working it again.",
+            )
+
+        if current["kind"] == "ack":
+            def mark(j, ref=req.reference):
+                j.meta[f"ack_seen_{ref}"] = True
+            await ctx.store.mutate_journey(journey.id, mark)
+
+        await ctx.log(
+            journey.id, "liaison", "portal.resynced",
+            f"📡 No word from {req.authority} for a while, so I asked. "
+            f"Application {req.reference} is: {current['kind']}.",
+        )
+        await ctx.bus.publish(events.PORTAL_RESPONSE, current)

@@ -19,7 +19,7 @@ from evals.harness.faults import BusFault, FaultPlan
 from evals.harness.probes import collect
 from evals.rubric import score_run
 from evals.runner import run_scenario
-from evals.scenarios import SCENARIOS, SCENARIOS_BY_ID
+from evals.scenarios import ALL_SCENARIOS, SCENARIOS_BY_ID
 from lalfita.common import config, events
 
 
@@ -32,7 +32,7 @@ def eval_clock():
     config.SIM_DAY_SECONDS, config.SUBMIT_LEASE_SECONDS = sim, lease
 
 
-@pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.id)
+@pytest.mark.parametrize("scenario", ALL_SCENARIOS, ids=lambda s: s.id)
 async def test_scenario(scenario):
     if scenario.expected_fail:
         pytest.xfail(f"{scenario.id}: known gap — {scenario.note}")

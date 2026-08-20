@@ -29,6 +29,10 @@ jobs:
         run: python -m evals.runner
         env:
           LALFITA_OFFLINE: "1"
+      - name: Durability (real process kill)
+        run: pytest -q -m durable tests/test_durability.py
+        env:
+          LALFITA_OFFLINE: "1"
       - name: Upload eval report
         if: always()
         uses: actions/upload-artifact@v4

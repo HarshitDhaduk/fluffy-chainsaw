@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from lalfita.common import events
 from lalfita.common.schemas import ApprovalKind, ApprovalStatus, Journey, JourneyStatus
 
+from .chaos_store import StoreUnavailable
+
 # Approval policies
 APPROVE_ALL = "approve_all"
 HOLD_NOTICE_REPLY = "hold_notice_reply"  # let the deadline run down
@@ -36,12 +38,14 @@ class EvalDriver:
         max_ticks: int = 400,
         tick_s: float = 0.05,
         duplicate_approvals: bool = False,
+        tick_outage: tuple[int, int] | None = None,
     ) -> None:
         self._app = app
         self._policy = policy
         self._max_ticks = max_ticks
         self._tick_s = tick_s
         self._duplicate_approvals = duplicate_approvals
+        self._tick_outage = tick_outage
 
     def _may_approve(self, kind: str) -> bool:
         if self._policy == APPROVE_NONE:
@@ -50,10 +54,25 @@ class EvalDriver:
             return False
         return True
 
+    @staticmethod
+    async def _tolerant(coro, default):
+        """The driver stands in for a human and a scheduler, neither of which
+        is under test. A store outage that hits *their* reads just means a
+        refresh failed — retry next tick rather than aborting the run."""
+        try:
+            return await coro
+        except StoreUnavailable:
+            return default
+
     async def run(self, goal: str, profile: dict) -> RunResult:
         ctx = self._app.ctx
         journey = Journey(goal=goal, profile=profile)
-        await ctx.store.create_journey(journey)
+        for _ in range(20):  # the human retries the "start" button
+            try:
+                await ctx.store.create_journey(journey)
+                break
+            except StoreUnavailable:
+                await asyncio.sleep(self._tick_s)
         await ctx.bus.publish(events.JOURNEY_CREATED, {"journey_id": journey.id})
 
         result = RunResult(journey_id=journey.id, completed=False, ticks=0, approvals_granted=0)
@@ -61,13 +80,23 @@ class EvalDriver:
         for tick in range(1, self._max_ticks + 1):
             result.ticks = tick
             await asyncio.sleep(self._tick_s)
-            await ctx.bus.publish(events.DEADLINE_TICK, {})
+            # A scheduler outage means nobody is pumping the watchdog.
+            in_outage = (
+                self._tick_outage is not None
+                and self._tick_outage[0] <= tick <= self._tick_outage[1]
+            )
+            if not in_outage:
+                await ctx.bus.publish(events.DEADLINE_TICK, {})
 
-            for approval in await ctx.store.list_approvals(journey.id, ApprovalStatus.PENDING):
+            pending = await self._tolerant(
+                ctx.store.list_approvals(journey.id, ApprovalStatus.PENDING), []
+            )
+            for approval in pending:
                 if not self._may_approve(approval.kind):
                     continue
                 approval.status = ApprovalStatus.APPROVED
-                await ctx.store.save_approval(approval)
+                if await self._tolerant(ctx.store.save_approval(approval), "failed") == "failed":
+                    continue
                 payload = {
                     "journey_id": approval.journey_id,
                     "approval_id": approval.id,
@@ -82,7 +111,7 @@ class EvalDriver:
                     await ctx.bus.publish(events.APPROVAL_GRANTED, payload)
                     result.duplicate_approval_events += 1
 
-            current = await ctx.store.get_journey(journey.id)
+            current = await self._tolerant(ctx.store.get_journey(journey.id), None)
             if current and current.status == JourneyStatus.COMPLETED:
                 result.completed = True
                 break

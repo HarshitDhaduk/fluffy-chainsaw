@@ -13,8 +13,11 @@ stages only.
 """
 
 import asyncio
+import json
+import os
 from collections import defaultdict
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from .schemas import Approval, ApprovalStatus, Deadline, Journey, TimelineEntry, utcnow
@@ -228,3 +231,89 @@ class FirestoreStore(Store):
     async def list_deadlines(self, journey_id: str) -> list[Deadline]:
         query = self._db.collection("deadlines").where("journey_id", "==", journey_id)
         return [Deadline.model_validate(s.to_dict()) async for s in query.stream()]
+
+
+class JsonFileStore(InMemoryStore):
+    """Durable local store: identical semantics to InMemoryStore (so the
+    atomic mutate_journey is inherited verbatim), flushed to a single JSON
+    file after every write.
+
+    This exists so durability can be *proved* rather than asserted: a process
+    can be killed outright and a fresh one rebuilt on the same file. It is
+    also a genuinely convenient dev mode — restart the local server without
+    losing your journey."""
+
+    def __init__(self, path: str) -> None:
+        super().__init__()
+        self._path = Path(path)
+        self._load()
+
+    # -- persistence ---------------------------------------------------------
+
+    def _load(self) -> None:
+        if not self._path.exists():
+            return
+        raw = json.loads(self._path.read_text() or "{}")
+        self._journeys = {
+            k: Journey.model_validate(v) for k, v in raw.get("journeys", {}).items()
+        }
+        self._timelines = {
+            k: [TimelineEntry.model_validate(e) for e in v]
+            for k, v in raw.get("timelines", {}).items()
+        }
+        self._approvals = {
+            k: Approval.model_validate(v) for k, v in raw.get("approvals", {}).items()
+        }
+        self._deadlines = {
+            k: Deadline.model_validate(v) for k, v in raw.get("deadlines", {}).items()
+        }
+
+    def _flush(self) -> None:
+        payload = {
+            "journeys": {k: v.model_dump(mode="json") for k, v in self._journeys.items()},
+            "timelines": {
+                k: [e.model_dump(mode="json") for e in v] for k, v in self._timelines.items()
+            },
+            "approvals": {k: v.model_dump(mode="json") for k, v in self._approvals.items()},
+            "deadlines": {k: v.model_dump(mode="json") for k, v in self._deadlines.items()},
+        }
+        # Write-then-rename: a kill mid-flush leaves the previous good file,
+        # never a half-written one.
+        tmp = self._path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(payload))
+        os.replace(tmp, self._path)
+
+    # -- writes (delegate, then persist) -------------------------------------
+
+    async def create_journey(self, journey: Journey) -> None:
+        await super().create_journey(journey)
+        self._flush()
+
+    async def save_journey(self, journey: Journey) -> None:
+        await super().save_journey(journey)
+        self._flush()
+
+    async def mutate_journey(self, journey_id: str, fn):
+        result = await super().mutate_journey(journey_id, fn)
+        self._flush()
+        return result
+
+    async def append_timeline(self, journey_id: str, entry: TimelineEntry) -> None:
+        await super().append_timeline(journey_id, entry)
+        self._flush()
+
+    async def create_approval(self, approval: Approval) -> None:
+        await super().create_approval(approval)
+        self._flush()
+
+    async def save_approval(self, approval: Approval) -> None:
+        await super().save_approval(approval)
+        self._flush()
+
+    async def create_deadline(self, deadline: Deadline) -> None:
+        await super().create_deadline(deadline)
+        self._flush()
+
+    async def save_deadline(self, deadline: Deadline) -> None:
+        await super().save_deadline(deadline)
+        self._flush()

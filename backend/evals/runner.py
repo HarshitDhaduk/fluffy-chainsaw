@@ -28,7 +28,7 @@ from .harness.app import build_eval_app  # noqa: E402
 from .harness.driver import EvalDriver  # noqa: E402
 from .harness.probes import collect  # noqa: E402
 from .rubric import CRITERIA, score_run  # noqa: E402
-from .scenarios import SCENARIOS, SCENARIOS_BY_ID  # noqa: E402
+from .scenarios import ALL_SCENARIOS, SCENARIOS_BY_ID  # noqa: E402
 
 REPORT_DIR = Path(__file__).parent / "report"
 
@@ -42,6 +42,7 @@ async def run_scenario(scenario, seed: int) -> dict:
             policy=scenario.policy,
             max_ticks=scenario.max_ticks,
             duplicate_approvals=scenario.duplicate_approvals,
+            tick_outage=scenario.tick_outage,
         )
         run = await driver.run(scenario.goal, dict(scenario.profile))
         metrics = await collect(
@@ -68,7 +69,7 @@ async def run_scenario(scenario, seed: int) -> dict:
 
 
 async def main_async(args) -> int:
-    scenarios = SCENARIOS
+    scenarios = ALL_SCENARIOS
     if args.only:
         wanted = [s.strip() for s in args.only.split(",")]
         scenarios = [SCENARIOS_BY_ID[w] for w in wanted]
@@ -232,6 +233,27 @@ def render_markdown(report: dict) -> str:
         "| `FlakyLLM` | Model call failures and malformed/unparseable output |",
         "| `ExplodingNotifier` | Notification channel outage |",
         "",
+        "## Durability: surviving the process, not just the fault",
+        "",
+        "Scenarios D1–D8 fault the one dependency the first round never",
+        "touched — the store itself — and stop the clock while nobody is",
+        "watching. Alongside them, `make evals-durable` runs the strict test:",
+        "a real `uvicorn` process is **SIGKILLed** mid-journey and a fresh one",
+        "is started on the same file. Nothing in memory survives that, so",
+        "whatever the new process knows, it read from disk.",
+        "",
+        "The authorities' pushed notifications, however, are gone for good —",
+        "they fired while the fleet was dead. That is not a simulation",
+        "artifact; it is what happens when an email arrives during an outage.",
+        "So the journey must notice the silence and **go and ask**: the",
+        "Sentinel sweeps for work that has stopped moving, and Liaison",
+        "reconciles each filing against the authority's own record. A restart",
+        "became a pause instead of an ending.",
+        "",
+        "`make evals-soak` adds the faults nobody thought to write down: 50",
+        "journeys, each with a random cocktail of bus, store, model and portal",
+        "failures. Any failure reprints its seed for exact reproduction.",
+        "",
         "## What building these evals changed",
         "",
         "Every scenario passes now, but five of them were red first. The suite",
@@ -257,6 +279,28 @@ def render_markdown(report: dict) -> str:
         "   `requirements` key raised, and nothing retried the journey.",
         "   Pathfinder now validates the shape and degrades to its built-in",
         "   determination, visibly, on the timeline.",
+        "",
+        "The durability round found four more, all the same shape: **a claim",
+        "recorded before the work it guards was finished.**",
+        "",
+        "6. **Documents requested but never validated.** Clerk marked setup",
+        "   done, then died before validating; every redelivery bounced off",
+        "   its own guard. Guards are now resumable, not merely idempotent.",
+        "7. **One failed write stranded one registration.** Application gates",
+        "   were prepared all-or-nothing, so a single failed approval write",
+        "   left that registration with no gate forever. Preparation is now",
+        "   per-registration.",
+        "8. **A notice marked handled with nothing to show for it.** If the",
+        "   drafted reply never reached the user, the claim still said",
+        "   \"handled\" and the deadline ran out in silence. Reconciliation now",
+        "   reopens a notice whose reply never materialised, retiring the",
+        "   abandoned countdown so the user never sees two.",
+        "9. **Nothing ever tried again.** When retries exhausted or a lease",
+        "   blocked them, the journey simply stopped. The Sentinel now",
+        "   reconciles stalled journeys against their stored state and",
+        "   re-emits whatever would move them forward — and escalates to a",
+        "   human when repeated attempts get nowhere, rather than retrying",
+        "   quietly forever.",
         "",
         "## Why these evals can fail",
         "",

@@ -27,5 +27,11 @@ evals: ## Run the self-healing eval matrix (offline, deterministic) and refresh 
 evals-live: ## Run live-model quality evals (spends Gemini quota)
 	cd backend && LIVE_EVALS=1 $(abspath $(PYTEST)) -q -m live evals/live -s
 
+evals-durable: ## Kill a real process mid-journey and prove the work survives
+	cd backend && $(abspath $(PYTEST)) -q -m durable tests/test_durability.py
+
+evals-soak: ## 50 journeys with random fault cocktails (opt-in, ~5 min)
+	cd backend && LALFITA_OFFLINE=1 $(abspath $(PYTHON)) -m evals.soak --iterations 50
+
 dashboard: ## Run the Next.js dashboard on :3000 (expects `make dev` on :8080)
 	cd dashboard && npm install && npm run dev

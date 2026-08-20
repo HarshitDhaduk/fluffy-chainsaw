@@ -108,11 +108,22 @@ async def collect(
         for req in journey.requirements:
             if req.status == StepStatus.DONE and not req.registration_number:
                 m.invariant_violations.append(f"{req.key}: DONE without a registration number")
-        notice_replies = [a for a in approvals if a.kind == ApprovalKind.NOTICE_REPLY]
-        if len(notice_replies) > 1:
-            m.invariant_violations.append(f"{len(notice_replies)} notice-reply approvals")
-        if len(deadlines) > 1:
-            m.invariant_violations.append(f"{len(deadlines)} deadlines for one notice")
+        open_replies = [
+            a
+            for a in approvals
+            if a.kind == ApprovalKind.NOTICE_REPLY and a.status == ApprovalStatus.PENDING
+        ]
+        if len(open_replies) > 1:
+            m.invariant_violations.append(
+                f"{len(open_replies)} notice-reply gates open at once"
+            )
+        # A retired deadline from a reopened notice is history, not a bug —
+        # what must never happen is two live countdowns for one notice.
+        live_deadlines = [d for d in deadlines if not d.resolved]
+        if len(live_deadlines) > 1:
+            m.invariant_violations.append(
+                f"{len(live_deadlines)} live deadlines for one notice"
+            )
         if run.completed and any(r.status != StepStatus.DONE for r in journey.requirements):
             m.invariant_violations.append("completed with unfinished requirements")
 

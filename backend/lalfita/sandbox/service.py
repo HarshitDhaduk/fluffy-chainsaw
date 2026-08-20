@@ -11,7 +11,7 @@ import os
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from ..common import config
@@ -62,6 +62,16 @@ async def healthz() -> dict:
 async def submit(authority: str, sub: SubmissionIn) -> dict:
     ref = await government.submit(authority, sub.journey_id, sub.requirement_key, sub.application)
     return {"reference": ref}
+
+
+@app.get("/portals/{authority}/applications/{ref}")
+async def status(authority: str, ref: str) -> dict:
+    """Where does this application stand? Answers even if the push
+    notification never reached the agent fleet."""
+    result = government.status(ref)
+    if result is None:
+        raise HTTPException(404, "unknown application reference")
+    return result
 
 
 @app.post("/portals/{authority}/applications/{ref}/reply")

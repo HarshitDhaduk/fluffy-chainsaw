@@ -38,7 +38,11 @@ include = ["lalfita*", "evals*"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
-markers = ["live: hits the real Gemini API (opt in with LIVE_EVALS=1)"]
+markers = [
+    "live: hits the real Gemini API (opt in with LIVE_EVALS=1)",
+    "durable: spawns subprocesses and kills them; slower (make evals-durable)",
+]
+addopts = "-m 'not durable'"
 
 [tool.ruff]
 line-length = 100

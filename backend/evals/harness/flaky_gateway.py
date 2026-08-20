@@ -69,6 +69,10 @@ class CountingGateway(PortalGateway):
         await self._inner.reply(authority, ref, journey_id, requirement_key, body)
         self._ledger.replies.append((journey_id, requirement_key, ref))
 
+    async def status(self, authority, ref) -> dict | None:
+        # Reads are not side effects, so they are passed through unrecorded.
+        return await self._inner.status(authority, ref)
+
 
 class FlakyGateway(PortalGateway):
     def __init__(self, inner: PortalGateway, plan: FaultPlan, ledger: Ledger) -> None:
@@ -119,3 +123,9 @@ class FlakyGateway(PortalGateway):
         await self._inner.reply(authority, ref, journey_id, requirement_key, body)
         if fault and fault.action == "crash_after":
             raise CrashInjected("injected crash_after reply")
+
+    async def status(self, authority, ref) -> dict | None:
+        fault = self._fault_for("status", ref)
+        if fault and fault.action in ("crash_before", "timeout"):
+            self._raise(fault.action)
+        return await self._inner.status(authority, ref)

@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from lalfita.common import events
 
+from ..harness.chaos_store import StoreFault
 from ..harness.driver import APPROVE_ALL, APPROVE_NONE, HOLD_NOTICE_REPLY
 from ..harness.faults import BusFault, FaultPlan, GatewayFault, LlmFault
 
@@ -37,6 +38,9 @@ class Scenario:
     # expected outcome; `milestones` then narrows what the audit must contain.
     expect_completion: bool = True
     milestones: list[str] | None = None
+    # (start_tick, end_tick) during which the driver withholds deadline ticks,
+    # modelling a scheduler or service outage.
+    tick_outage: tuple[int, int] | None = None
 
     @property
     def faults_injected(self) -> bool:
@@ -195,4 +199,80 @@ SCENARIOS: list[Scenario] = [
     ),
 ]
 
-SCENARIOS_BY_ID = {s.id: s for s in SCENARIOS}
+# ---------------------------------------------------------------------------
+# Durability: the store misbehaves, the clock stops, events arrive from the
+# past, and nobody is watching. Round 1 asked "does it survive faults?";
+# these ask "does the work survive time?".
+# ---------------------------------------------------------------------------
+
+DURABILITY_SCENARIOS: list[Scenario] = [
+    Scenario(
+        id="D1", title="Transaction aborts under contention",
+        fault="the first three journey mutations are rejected by the store",
+        plan=_plan(store=[StoreFault("mutate_journey", "abort", times=3, nth=2)]),
+        note="Firestore aborts contended transactions; the retry must be clean.",
+    ),
+    Scenario(
+        id="D2", title="Ambiguous write (committed, but reported failed)",
+        fault="a journey mutation commits and then reports failure",
+        plan=_plan(store=[StoreFault("mutate_journey", "ambiguous", times=2, nth=3)]),
+        note="The write landed but the caller believes it did not — the case "
+             "that breaks naive retries and can double-file.",
+    ),
+    Scenario(
+        id="D3", title="Store reads fail transiently",
+        fault="get_journey fails four times",
+        plan=_plan(store=[StoreFault("get_journey", "fail", times=4, nth=3)]),
+        note="A handler that cannot read must fail loudly and be redelivered.",
+    ),
+    Scenario(
+        id="D4", title="Audit writes fail",
+        fault="timeline appends fail three times",
+        plan=_plan(store=[StoreFault("append_timeline", "fail", times=3, nth=5)]),
+        milestones=["research.started", "plan.ready", "submission.sent",
+                    "portal.approved", "journey.completed"],
+        note="Losing an audit line must not lose the journey.",
+    ),
+    Scenario(
+        id="D5", title="Slow store",
+        fault="every mutation takes 120ms",
+        plan=_plan(store=[StoreFault("mutate_journey", "slow", times=0, nth=1,
+                                     delay_s=0.12)]),
+        max_ticks=600,
+        note="Latency must not turn into lost updates or duplicate filings.",
+    ),
+    Scenario(
+        id="D6", title="Scheduler outage",
+        fault="deadline ticks stop for a long stretch, then resume",
+        plan=_plan(),
+        policy=HOLD_NOTICE_REPLY,
+        max_ticks=260,
+        expected_escalations=1,
+        expect_completion=False,
+        tick_outage=(60, 200),
+        milestones=["research.started", "plan.ready", "submission.sent",
+                    "portal.notice", "reply.drafted", "deadline.escalation"],
+        note="Cloud Scheduler goes down across the whole escalation ladder; "
+             "on catch-up the human must still be warned.",
+    ),
+    Scenario(
+        id="D7", title="Zombie events from the past",
+        fault="every portal response is also replayed much later",
+        plan=_plan(bus=[BusFault(events.PORTAL_RESPONSE, "duplicate", nth=1, times=0),
+                        BusFault(events.PORTAL_RESPONSE, "delay", nth=2, times=0,
+                                 delay_s=0.4)]),
+        note="Late and out-of-order arrivals must not regress a finished journey.",
+    ),
+    Scenario(
+        id="D8", title="Poison pill",
+        fault="one handler's store write fails on every delivery",
+        plan=_plan(store=[StoreFault("create_approval", "fail", times=0, nth=1)]),
+        expect_completion=False,
+        milestones=["research.started", "plan.ready"],
+        note="Retries eventually exhaust; a human must learn rather than the "
+             "journey dying in silence.",
+    ),
+]
+
+ALL_SCENARIOS = SCENARIOS + DURABILITY_SCENARIOS
+SCENARIOS_BY_ID = {s.id: s for s in ALL_SCENARIOS}
