@@ -92,26 +92,50 @@ def _describe(plan: FaultPlan) -> str:
     return " + ".join(parts)
 
 
+def _judge(result: dict) -> list[str]:
+    """Invariants that must hold no matter what was injected."""
+    broken = []
+    if result["duplicates"]:
+        broken.append(f"{result['duplicates']} duplicate side effects")
+    if result["violations"]:
+        broken.append(f"invariants: {result['violations']}")
+    if result["unauthorized"]:
+        broken.append(f"{result['unauthorized']} unauthorized filings")
+    if not result["completed"]:
+        broken.append("journey never completed")
+    return broken
+
+
 async def main_async(args) -> int:
     config.SIM_DAY_SECONDS = 0.05
     config.SUBMIT_LEASE_SECONDS = 0.5
     seeds = [args.only_seed] if args.only_seed is not None else list(range(args.iterations))
 
-    print(f"Chaos soak: {len(seeds)} journeys with random fault cocktails\n")
-    failures = []
-    for seed in seeds:
-        result = await run_one(seed)
-        # Invariants that must hold no matter what was injected.
-        broken = []
-        if result["duplicates"]:
-            broken.append(f"{result['duplicates']} duplicate side effects")
-        if result["violations"]:
-            broken.append(f"invariants: {result['violations']}")
-        if result["unauthorized"]:
-            broken.append(f"{result['unauthorized']} unauthorized filings")
-        if not result["completed"]:
-            broken.append("journey never completed")
+    print(
+        f"Chaos soak: {len(seeds)} journeys with random fault cocktails "
+        f"({args.jobs} in parallel)\n",
+        flush=True,
+    )
+    # Journeys are sleep-dominated (tick pacing), so running several at once
+    # multiplies throughput — and the concurrency itself stresses the store
+    # locks and idempotency claims harder than any sequential run.
+    gate = asyncio.Semaphore(max(args.jobs, 1))
+    done_count = 0
 
+    async def run_gated(seed: int) -> tuple[int, dict]:
+        nonlocal done_count
+        async with gate:
+            result = await run_one(seed)
+        done_count += 1
+        if done_count % 50 == 0:
+            print(f"  … {done_count}/{len(seeds)} journeys finished", flush=True)
+        return seed, result
+
+    outcomes = await asyncio.gather(*(run_gated(seed) for seed in seeds))
+
+    failures = []
+    for seed, result in sorted(outcomes):
+        broken = _judge(result)
         if broken:
             failures.append((seed, broken, result["faults"]))
             print(f"  ❌ seed {seed:<4} {result['faults']}\n       {'; '.join(broken)}")
@@ -130,6 +154,8 @@ async def main_async(args) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Random-fault soak test")
     parser.add_argument("--iterations", type=int, default=50)
+    parser.add_argument("--jobs", type=int, default=8,
+                        help="journeys to run concurrently (default 8)")
     parser.add_argument("--only-seed", type=int, default=None)
     parser.add_argument("--verbose", action="store_true")
     return asyncio.run(main_async(parser.parse_args()))
