@@ -1,6 +1,6 @@
 # LalFita self-healing evaluation report
 
-**Verdict: PASS** · commit `f959d14` · 28 scenarios × 3 seeds · offline and deterministic
+**Verdict: PASS** · commit `19eda44` · 28 scenarios × 3 seeds · offline and deterministic
 
 LalFita's central claim is that a journey survives crashes, duplicate
 event delivery, model failures and flaky dependencies without human
@@ -59,7 +59,7 @@ modified or aware it is being tested**.
 
 - **0 duplicate outbound side effects** across every run — no
   application was ever filed twice, however often events were redelivered.
-- 441 injected crashes, 51 redeliveries absorbed.
+- 442 injected crashes, 51 redeliveries absorbed.
 
 ## How faults are injected
 
@@ -88,9 +88,12 @@ Sentinel sweeps for work that has stopped moving, and Liaison
 reconciles each filing against the authority's own record. A restart
 became a pause instead of an ending.
 
-`make evals-soak` adds the faults nobody thought to write down: 50
-journeys, each with a random cocktail of bus, store, model and portal
-failures. Any failure reprints its seed for exact reproduction.
+`make evals-soak` adds the faults nobody thought to write down:
+journeys with random cocktails of bus, store, model and portal
+failures, run in parallel so the concurrency itself stresses the
+store locks and idempotency claims. Any failure reprints its seed
+for exact reproduction. Largest certification run to date:
+**500/500 journeys healed themselves** (8 concurrent, seeds 0-499).
 
 ## What building these evals changed
 
