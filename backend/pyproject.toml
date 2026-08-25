@@ -17,6 +17,11 @@ dependencies = [
 cloud = [
     "google-adk>=1.0",
     "google-genai>=1.0",
+    # google-api-core 2.35.0 percent-encodes path-template segments, so
+    # Firestore's default database id "(default)" is sent as "%28default%29"
+    # and every call fails with `400 Invalid database id`. Verified: 2.33.0
+    # builds the path correctly, 2.35.0 does not. Revisit once upstream fixes it.
+    "google-api-core[grpc]>=2.24,<2.34",
     "google-cloud-firestore>=2.16",
     "google-cloud-pubsub>=2.21",
     "google-cloud-storage>=2.16",
