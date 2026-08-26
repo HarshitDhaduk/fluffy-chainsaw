@@ -36,6 +36,9 @@ def get_ctx() -> Context:
     return _ctx
 
 
+# Google's frontend shadows the exact path /healthz on *.run.app — those
+# requests never reach the container — so /health is the one to curl in cloud.
+@app.get("/health")
 @app.get("/healthz")
 async def healthz() -> dict:
     return {"ok": True, "service": "agents"}

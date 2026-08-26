@@ -53,6 +53,8 @@ class ReplyIn(BaseModel):
     body: dict = {}
 
 
+# See the note in agents/service.py: /healthz is shadowed by Google's frontend.
+@app.get("/health")
 @app.get("/healthz")
 async def healthz() -> dict:
     return {"ok": True, "service": "sandbox"}

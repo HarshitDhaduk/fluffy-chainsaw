@@ -41,11 +41,15 @@ unauthenticated event.
 
 ## Smoke test after deploy
 
-1. `curl <API_URL>/healthz` and `curl <SANDBOX_URL>/healthz` → `{"ok": true}`.
+1. `curl <API_URL>/health` and `curl <SANDBOX_URL>/health` → `{"ok": true}`.
+   Use `/health`, not `/healthz`: Google's frontend shadows the exact path
+   `/healthz` on `*.run.app`, so those requests are answered by the edge with
+   an HTML 404 and never reach the container. Both paths are registered, and
+   `/healthz` still works locally.
 2. Open the dashboard → start a journey (tick **demo mode** for fixture
    documents) → approve the gates as they appear → journey completes in a few
    minutes on the 30s/day sim clock.
-3. `curl <AGENTS_URL>/healthz` **without** auth → 403. That's the lock
+3. `curl <AGENTS_URL>/health` **without** auth → 403. That's the lock
    working.
 
 ## Submission proof checklist (Devpost requires "built on Google Cloud")

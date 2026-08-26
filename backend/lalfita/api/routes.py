@@ -21,6 +21,9 @@ class DecisionIn(BaseModel):
 def build_router(ctx: Context) -> APIRouter:
     router = APIRouter()
 
+    # See the note in agents/service.py: /healthz is shadowed by Google's
+    # frontend on *.run.app, so /health is the path to curl in cloud mode.
+    @router.get("/health")
     @router.get("/healthz")
     async def healthz() -> dict:
         return {"ok": True, "service": "api"}

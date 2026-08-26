@@ -256,7 +256,7 @@ so vigilance survives restarts too.
 |---|---|---|---|---|
 | B1 | Real document upload + Gemini vision extraction | F3 | Agents | ✅ done Aug 17 |
 | B2 | Vertex switch (credits) + grounded Pathfinder + Pro model | F1 | Infra | Aug 20 |
-| B3 | First cloud deploy; GCP console screenshots start | F7/G6 | Infra | scripts ready (Aug 17); first run pending — see docs/DEPLOY.md |
+| B3 | First cloud deploy; GCP console screenshots start | F7/G6 | Infra | ✅ deployed Aug 26 to `lalfita-hack` (4 Cloud Run services, agents IAM-locked); screenshots pending |
 | B4 | Idempotency guards on all handlers + duplicate-delivery tests | §8 R3 | Agents | ✅ done Aug 17 (notice claims, crash-safe meta markers, 4 dup-delivery tests) |
 | B5 | Dashboard polish: intake wizard, document upload UI, deadline countdown | F2/F4 | Dashboard | ✅ done Aug 17 |
 | B6 | Notification fan-out (ntfy push + webhook + timeline) | F8 | Sandbox/Integrations | ✅ done Aug 17 |
