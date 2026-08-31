@@ -60,11 +60,27 @@ async def run_agent(
 
 
 def _parse_json(text: str, *, fallback: dict) -> dict:
-    """Leniently pull a JSON object out of a model reply (handles ``` fences)."""
+    """Leniently pull a JSON object out of a model reply (handles ``` fences,
+    'Here is the JSON:' prefixes, and other common wrappers)."""
+    # Try direct JSON first
+    try:
+        return json.loads(text.strip())
+    except json.JSONDecodeError:
+        pass
+
+    # Try regex to find JSON object
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if match:
         try:
             return json.loads(match.group(0))
         except json.JSONDecodeError:
-            log.warning("LLM reply was not valid JSON; falling back to fixture")
+            pass
+
+    # Try stripping common prefixes like "Here is the JSON:" or "```json"
+    cleaned = re.sub(r"^(?:Here(?:'s| is) (?:the )?JSON:?\s*|```json\s*)", "", text.strip())
+    cleaned = re.sub(r"```\s*$", "", cleaned)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        log.warning("LLM reply was not valid JSON; falling back to fixture")
     return fallback

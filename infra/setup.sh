@@ -3,8 +3,13 @@
 # Usage: PROJECT_ID=my-project ./infra/setup.sh   (REGION defaults to us-central1)
 set -euo pipefail
 
-PROJECT_ID="${PROJECT_ID:?set PROJECT_ID}"
-REGION="${REGION:-us-central1}"
+PROJECT_ID="${PROJECT_ID:-${GOOGLE_CLOUD_PROJECT:-}}"
+REGION="${REGION:-${GOOGLE_CLOUD_LOCATION:-us-central1}}"
+
+if [[ -z "$PROJECT_ID" ]]; then
+  echo "ERROR: Set PROJECT_ID or GOOGLE_CLOUD_PROJECT environment variable"
+  exit 1
+fi
 TOPIC="${PUBSUB_TOPIC:-lalfita-events}"
 INVOKER_SA_NAME="lalfita-invoker"
 INVOKER_SA="${INVOKER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
